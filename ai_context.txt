@@ -1,0 +1,656 @@
+================================================================================
+AI CONTEXT DOCUMENT — Plantation & Tree Analytics Dashboard
+Generated: 2026-04-21
+Purpose: Dense technical reference for AI context windows. No fluff.
+================================================================================
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. SYSTEM SUMMARY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Full-stack GIS forestry platform. Core loop:
+  upload drone images → NodeODM photogrammetry → GeoTIFF outputs (ortho/DSM/DTM)
+  → GDAL XYZ tile pyramids + CHM (DSM−DTM) → YOLOv9 tree detection
+  → per-tree height extraction from CHM → VARI+GCC health classification
+  → PostGIS storage → MapLibre GL JS map + analytics dashboard
+
+All services run in Docker Compose. No Kubernetes, no cloud-specific infra.
+Backend does NOT volume-mount source code — code changes require docker build.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+2. DOCKER COMPOSE SERVICES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SERVICE            CONTAINER                PORT         IMAGE/BUILD
+─────────────────────────────────────────────────────────────────────────────
+postgres           plantation-db            5433:5432    postgis/postgis:16-3.4
+redis              plantation-redis         6380:6379    redis:7-alpine
+nodeodm            plantation-nodeodm       (internal:3000) opendronemap/nodeodm:latest
+backend            plantation-backend       8080:8000    build: ./backend
+celery-worker      plantation-celery        —            build: ./backend
+celery-beat        plantation-celery-beat   —            build: ./backend
+frontend           plantation-frontend      5000:80      build: ./frontend
+
+VOLUMES:
+  pgdata     → postgres data
+  uploads    → /app/uploads  (ortho.tif, dsm.tif, dtm.tif, chm.tif per project UUID)
+  tiles      → /app/tiles    (XYZ PNG pyramids per project UUID)
+  odm_data   → nodeodm working files
+
+DEPENDENCY ORDER:
+  postgres (healthy) + redis (healthy) → backend → frontend
+  postgres (healthy) + redis (healthy) + nodeodm (started) → celery-worker
+  postgres (healthy) + redis (healthy) → celery-beat
+
+HEALTHCHECKS:
+  postgres:  pg_isready -U postgres -d plantation_db (5s/5s/5 retries)
+  redis:     redis-cli ping
+  nodeodm:   curl -sf http://localhost:3000/info (15s/10s/15 retries, 120s start_period)
+  backend:   curl -f http://localhost:8000/api/health (10s/5s/5 retries)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+3. DIRECTORY STRUCTURE MAP (critical files)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+GIS/
+├── docker-compose.yml          ← 7-service stack definition
+├── start.sh                    ← docker compose up -d (no rebuild); auto-runs setup.sh
+├── deploy.sh                   ← build + restart; args: --service <name>, --push
+├── stop.sh                     ← docker compose down
+├── setup.sh                    ← downloads yolov9_trees.onnx from PUT Poznan CDN
+│
+├── backend/
+│   ├── Dockerfile              ← Python 3.11-slim; copies source, pip install, uvicorn CMD
+│   ├── requirements.txt        ← all Python dependencies (see Section 6)
+│   └── app/
+│       ├── main.py             ← FastAPI app; lifespan: DB create_all + seed(); mounts all
+│       │                          routers; mounts /tiles as StaticFiles AFTER dynamic routes
+│       ├── config.py           ← Pydantic BaseSettings; reads .env; lru_cache singleton
+│       ├── database.py         ← SQLAlchemy engine (POSTGRES), SessionLocal, Base, get_db
+│       ├── models.py           ← ORM: User, Project, Tree, DroneProcessingJob,
+│       │                          ProcessingNode, ClientSubAdminAssignment + all enums
+│       ├── schemas.py          ← Pydantic v2 request/response models
+│       ├── auth.py             ← JWT create/verify; deps: get_current_user,
+│       │                          require_staff, require_admin; hash_password/verify
+│       ├── celery_app.py       ← Celery instance; broker=REDIS_URL; beat_schedule:
+│       │                          update_nodes_info(15s), process_pending_tasks(5s),
+│       │                          recover_stalled_jobs(60s); autodiscover_tasks(["app"])
+│       ├── seed.py             ← run_migrations() (raw SQL ALTER TYPE/TABLE);
+│       │                          seed(): creates admin/subadmin/client users + default
+│       │                          ProcessingNode(nodeodm:3000, token="")
+│       ├── tasks.py            ← All Celery tasks (see Section 5 for pipeline detail)
+│       ├── vegetation.py       ← VI engine: PALETTES dict (rdylgn/spectral/viridis/jet/magma);
+│       │                          INDICES dict (12 indices with formula/range/bands/label);
+│       │                          render_tile(project_id,z,x,y,index,palette) → PNG bytes;
+│       │                          uses lru_cache for rasterio.open handles
+│       └── routers/
+│           ├── auth.py         ← POST /api/auth/login → JWT; GET /api/auth/me
+│           ├── users.py        ← CRUD /api/users; client-subadmin assignment endpoints
+│           ├── projects.py     ← CRUD /api/projects; POST /api/projects/{id}/boundary
+│           ├── trees.py        ← GET /api/projects/{id}/trees (GeoJSON);
+│           │                      GET /api/projects/{id}/trees/list (filterable);
+│           │                      GET /api/projects/{id}/analytics;
+│           │                      POST/PUT/DELETE manual tree endpoints;
+│           │                      POST calculate-heights (batch)
+│           ├── upload.py       ← POST /api/projects/{id}/upload/{layer_type} (staff);
+│           │                      POST /api/projects/{id}/drone-images;
+│           │                      POST /api/projects/{id}/drone-process;
+│           │                      GET  /api/projects/{id}/drone-progress;
+│           │                      POST /api/projects/{id}/drone-cancel;
+│           │                      POST /api/projects/{id}/drone-restart
+│           ├── processing_nodes.py ← CRUD /api/processing-nodes/ (require_admin)
+│           └── vegetation.py   ← GET /api/projects/{id}/vegetation-indices;
+│                                  GET /tiles/{id}/vi/{z}/{x}/{y}.png
+│
+├── frontend/
+│   ├── Dockerfile              ← Multi-stage: node:20-alpine build → nginx:alpine serve
+│   ├── nginx.conf              ← location /api/ proxy_pass backend:8000;
+│   │                              location /tiles/ proxy_pass backend:8000;
+│   │                              root /usr/share/nginx/html; try_files SPA fallback
+│   ├── package.json            ← see Section 6 for deps
+│   └── src/
+│       ├── App.jsx             ← react-router-dom v6; routes: /login, /admin/*, /client/*
+│       ├── api/client.js       ← Axios instance; baseURL=/api; request interceptor
+│       │                          attaches Bearer token from localStorage; 401→logout
+│       ├── contexts/AuthContext.jsx ← user state; isAdmin=(role==="ADMIN");
+│       │                              isStaff=(role==="ADMIN"||"SUB_ADMIN"); login/logout
+│       ├── components/
+│       │   ├── ProtectedRoute.jsx    ← wraps routes; requiredRole: "admin"|"staff"|undefined
+│       │   ├── LayerController.jsx   ← base map radio (ortho/dtm/dsm/plant health);
+│       │   │                            overlays checkboxes; VI index+palette selectors;
+│       │   │                            height range slider; color legend
+│       │   ├── TreeAnnotationPanel.jsx ← review UI: draw bbox (mousedown drag on map);
+│       │   │                              move/resize with corner handles; delete trees;
+│       │   │                              draw boundary polygon; save boundary
+│       │   └── DroneUploadPanel.jsx  ← drag-drop image upload; real-time progress SSE
+│       └── pages/
+│           ├── admin/
+│           │   ├── AdminDashboard.jsx  ← KPI cards + client grid + processing nodes section
+│           │   ├── AdminClients.jsx    ← client user CRUD table
+│           │   ├── AdminSubAdmins.jsx  ← subadmin CRUD + multi-select client assignment
+│           │   ├── ClientProjects.jsx  ← per-client project list with status filter
+│           │   ├── ProjectWizard.jsx   ← 4-step: create→upload layers→drone process→review
+│           │   │                          Step 2: node selector dropdown before "Start"
+│           │   └── ProjectEdit.jsx     ← post-creation tree review + annotation canvas
+│           └── client/
+│               ├── MapView.jsx         ← MapLibre GL JS map; loads XYZ raster tiles as
+│               │                          raster-tile sources; GeoJSON trees as circle layer;
+│               │                          boundary as fill+line layer; VI tiles as raster layer;
+│               │                          height heatmap; click popups; layer state in React
+│               └── AnalyticsView.jsx   ← Recharts: Pie (health), Bar (height histogram),
+│                                          stats cards, filterable tree table with pagination
+│
+└── tools/                      ← Standalone scripts (NOT imported by backend; for manual runs)
+    ├── detectv2.py             ← YOLOv9 inference on GeoTIFF; tiled sliding window;
+    │                              custom NMS (keep-largest, IoSmaller threshold);
+    │                              outputs CSV/GeoJSON of tree bboxes in lon/lat
+    ├── chm.py                  ← CHM = DSM − DTM; reproject DTM to DSM grid;
+    │                              clip negatives to 0; LZW compressed GeoTIFF output
+    ├── mean_hight.py           ← extract tree heights from CHM per bbox centroid;
+    │                              98th percentile of raster values; Excel output
+    ├── split.py                ← slice large GeoTIFF into overlapping tiles (20% overlap);
+    │                              preserves geo-referencing per tile
+    └── assets/
+        └── yolov9_trees.onnx   ← YOLOv9 ONNX model; downloaded by setup.sh
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+4. DATABASE SCHEMA (SQLAlchemy ORM → PostgreSQL + PostGIS)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+TABLE: users
+  id UUID PK | username VARCHAR(100) UNIQUE | password_hash VARCHAR(255)
+  plain_password VARCHAR(255) nullable | full_name VARCHAR(200)
+  role ENUM(ADMIN, SUB_ADMIN, CLIENT) | created_at TIMESTAMP
+  → relationships: projects (FK back), client_sub_admin_links, sub_admin_client_links
+
+TABLE: client_sub_admin_assignments
+  id UUID PK | client_id UUID FK users | sub_admin_id UUID FK users
+  created_at TIMESTAMP | UNIQUE(client_id, sub_admin_id)
+
+TABLE: projects
+  id UUID PK | name VARCHAR(200) | location VARCHAR(300) | description TEXT
+  client_id UUID FK users nullable | created_by UUID FK users nullable
+  reviewed_by UUID FK users nullable | reviewed_at TIMESTAMP nullable
+  last_edited_by UUID FK users nullable
+  status ENUM(DRAFT, CREATED, UNASSIGNED, UPLOADING, PROCESSING,
+              REVIEW_PENDING, REVIEW, READY, ERROR)
+  boundary_geojson TEXT nullable | area_hectares FLOAT nullable
+  processing_error TEXT nullable | created_at TIMESTAMP | updated_at TIMESTAMP
+  → relationships: client (User), creator (User), reviewer (User),
+                   last_editor (User), trees (Tree[]), drone_jobs (DroneProcessingJob[])
+
+TABLE: trees
+  id UUID PK | project_id UUID FK projects | tree_index INTEGER
+  latitude FLOAT | longitude FLOAT
+  geom Geometry(Point, 4326) [PostGIS]
+  height_m FLOAT nullable | health_status ENUM(Healthy, Moderate, Poor) nullable
+  confidence FLOAT nullable | detection_source VARCHAR(50) nullable
+  bbox_tl_lat/lon, bbox_tr_lat/lon, bbox_br_lat/lon, bbox_bl_lat/lon FLOAT nullable
+  created_at TIMESTAMP
+
+TABLE: drone_processing_jobs
+  id UUID PK | project_id UUID FK projects UNIQUE
+  processing_node_id UUID FK processing_nodes nullable
+  auto_processing_node BOOLEAN default True
+  nodeodm_task_id VARCHAR(100) nullable | status ENUM(uploading, queued, processing,
+    downloading, tiling, detecting, computing_heights, completed, failed)
+  pending_action ENUM(1=CANCEL, 2=REMOVE, 3=RESTART) nullable
+  progress FLOAT | current_stage VARCHAR(100)
+  created_at TIMESTAMP | updated_at TIMESTAMP
+
+TABLE: processing_nodes
+  id UUID PK | hostname VARCHAR(255) | port INTEGER
+  label VARCHAR(100) | token VARCHAR(255)
+  queue_count INTEGER default 0 | engine_version VARCHAR(50)
+  last_refreshed TIMESTAMP nullable
+  → NODE_OFFLINE_MINUTES = 5 (model constant + settings override)
+
+ENUMS (PostgreSQL native):
+  userrole: ADMIN, SUB_ADMIN, CLIENT
+  projectstatus: DRAFT, CREATED, UNASSIGNED, UPLOADING, PROCESSING,
+                 REVIEW_PENDING, REVIEW, READY, ERROR
+  healthstatus: Healthy, Moderate, Poor
+  droneJobstatus: uploading, queued, processing, downloading, tiling,
+                  detecting, computing_heights, completed, failed
+  pendingaction: 1, 2, 3
+
+MIGRATIONS: run_migrations() in seed.py runs raw SQL via engine.connect() at startup.
+  Uses ALTER TYPE ... ADD VALUE IF NOT EXISTS for enum additions.
+  Uses ALTER TABLE ... ADD COLUMN IF NOT EXISTS for column additions.
+  No Alembic — manual migration pattern.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+5. PROCESSING PIPELINE — Celery Tasks (backend/app/tasks.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+MANUAL SHAPEFILE PIPELINE: process_project_files(project_id)
+  Triggered by: staff uploads shapefiles then calls /api/projects/{id}/process
+  Steps:
+    1. Read boundary shapefile → reproject to EPSG:4326 → store as GeoJSON in project
+       → calculate area in EPSG:3857 → area_hectares
+    2. Read tree shapefile (named *tree* or *height*) → reproject to 4326
+    3. Read health shapefile (named *health*) → reproject to 4326
+    4. Merge trees + health:
+       - Try ID-column merge (id/fid/tree_id/objectid)
+       - Fall back to gpd.sjoin_nearest if no common ID
+    5. Insert Tree records into PostGIS (delete existing first)
+       - height_col: tree_heigt/tree_height/height/height_m/z/apex_height
+       - health normalization: "healthy"/"good"/"1"/"h" → HEALTHY; etc.
+    6. Find raster TIFs (ortho/dtm/dsm) → run GDAL tile generation
+    7. Project status → REVIEW_PENDING
+
+DRONE PROCESSING PIPELINE: process_drone_job(job_id)
+  Triggered by: POST /api/projects/{id}/drone-process
+  Stages (DroneJobStatus progression):
+    UPLOADING   → stream images to NodeODM via pyodm
+    QUEUED      → NodeODM task created, waiting for slot
+    PROCESSING  → NodeODM photogrammetry running (poll progress)
+    DOWNLOADING → download ortho.tif, dsm.tif, dtm.tif from NodeODM result
+    TILING      → run gdal2tiles.py (subprocess) for each raster
+                  zoom levels 10-22; output: /app/tiles/{project_id}/{type}/{z}/{x}/{y}.png
+    DETECTING   → CHM = DSM − DTM (rasterio); YOLOv9 tiled inference;
+                  custom NMS (keep-largest, IoSmaller=0.5);
+                  map pixel bbox → lon/lat via rasterio.transform.xy + PyProj
+    COMPUTING_HEIGHTS → for each detected tree: sample CHM at centroid (98th pct)
+    (health classification) → VARI + GCC computed from ortho bands per bbox
+                              HEALTHY: VARI>0.1 AND GCC>0.35
+                              MODERATE: VARI>0 AND GCC>=0.30
+                              POOR: otherwise
+    COMPLETED   → project.status = REVIEW_PENDING
+
+PERIODIC BEAT TASKS:
+  update_nodes_info (15s):
+    - Query all ProcessingNode records
+    - GET http://{hostname}:{port}/info with token auth
+    - Update queue_count, engine_version, last_refreshed
+    - Mark node offline if last_refreshed > NODE_OFFLINE_MINUTES old
+
+  process_pending_tasks (5s):
+    - Find DroneProcessingJob with pending_action SET
+    - CANCEL(1): call NodeODM cancel API
+    - REMOVE(2): call NodeODM remove API + delete local files
+    - RESTART(3): cancel + re-enqueue job
+    - Also: find QUEUED jobs, pick least-loaded online node, start processing
+
+  recover_stalled_jobs (60s):
+    - Find jobs in PROCESSING/DOWNLOADING/TILING/DETECTING states
+    - Check updated_at > STALLED_JOB_MINUTES (default 30min)
+    - Re-enqueue stalled jobs
+
+REDIS USAGE (direct redis_client beyond Celery):
+  - Distributed lock: task_lock:{job_id} (TASK_LOCK_EXPIRE=30s) prevents duplicate execution
+  - Progress key: job_progress:{job_id} → JSON with stage, percent
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+6. KEY DEPENDENCIES & CONFIGURATIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BACKEND — requirements.txt:
+  fastapi==0.115.0
+  uvicorn[standard]==0.30.0
+  sqlalchemy==2.0.35
+  geoalchemy2==0.15.2
+  psycopg2-binary==2.9.9
+  alembic==1.13.2          # installed but NOT used; manual migration pattern instead
+  python-jose[cryptography]==3.3.0
+  passlib[bcrypt]==1.7.4
+  bcrypt==3.2.0
+  python-multipart==0.0.9
+  pydantic==2.9.0
+  pydantic-settings==2.5.0
+  celery[redis]==5.4.0
+  redis==5.1.0
+  geopandas==1.0.1
+  shapely==2.0.6
+  pyproj==3.6.1
+  fiona==1.10.0
+  GDAL==3.6.2
+  numpy==1.26.4
+  aiofiles==24.1.0
+  pyodm>=1.5.0             # NodeODM Python client
+  rasterio>=1.3.0
+  ultralytics>=8.0.0       # YOLOv9 (used for model loading, but inference via onnxruntime)
+  opencv-python-headless>=4.8.0
+  onnx>=1.14.0
+  onnxruntime>=1.15.0
+  openpyxl>=3.1.0
+  requests>=2.31.0
+
+FRONTEND — package.json dependencies:
+  axios: ^1.7.0
+  lucide-react: ^1.7.0
+  maplibre-gl: ^4.5.0
+  react: ^18.3.0
+  react-dom: ^18.3.0
+  react-hot-toast: ^2.6.0
+  react-router-dom: ^6.26.0
+  recharts: ^2.12.0
+  (devDeps: vite ^5.4.0, tailwindcss ^3.4.19, @vitejs/plugin-react)
+
+ENVIRONMENT VARIABLES (backend/.env):
+  POSTGRES_DB=plantation_db
+  POSTGRES_USER=plantation_user
+  POSTGRES_PASSWORD=plantation_pass
+  DATABASE_URL=postgresql://plantation_user:plantation_pass@postgres:5432/plantation_db
+  REDIS_URL=redis://redis:6379/0
+  JWT_SECRET=plantation-jwt-secret-change-in-prod
+  JWT_ALGORITHM=HS256
+  JWT_EXPIRATION_HOURS=24
+  UPLOAD_DIR=/app/uploads          # set via docker-compose environment block
+  TILES_DIR=/app/tiles             # set via docker-compose environment block
+  NODEODM_URL=http://nodeodm:3000
+  YOLO_MODEL_PATH=/app/models/yolov9_trees.onnx  # set via environment block
+  NODE_OFFLINE_MINUTES=5
+  TASK_LOCK_EXPIRE=30
+  STALLED_JOB_MINUTES=30
+
+CELERY CONFIG (celery_app.py):
+  task_serializer=json | result_serializer=json | accept_content=[json]
+  timezone=UTC | task_track_started=True | task_acks_late=True
+  worker_prefetch_multiplier=1 | concurrency=2 (CLI arg in docker-compose)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+7. AUTHENTICATION & AUTHORIZATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BACKEND DEPS (auth.py):
+  get_current_user()    → any valid JWT; HTTPException 401 if missing/invalid
+  require_staff()       → ADMIN or SUB_ADMIN; 403 otherwise
+  require_admin()       → ADMIN only; 403 otherwise
+
+JWT: HS256, payload {sub: username, exp: utcnow + JWT_EXPIRATION_HOURS}
+Passwords: passlib bcrypt via hash_password()/verify_password()
+
+FRONTEND:
+  AuthContext.jsx → stores {user, token} in localStorage and React state
+  Axios interceptor → adds Authorization: Bearer {token} to all /api requests
+  ProtectedRoute.jsx → checks role from AuthContext; redirects if insufficient
+
+ROLE VISIBILITY RULES:
+  ADMIN:     all users, all projects, all nodes
+  SUB_ADMIN: only assigned clients' projects; cannot see other sub-admins' clients
+  CLIENT:    only own projects WHERE status=READY
+
+PROJECT ACCESS HELPERS (_can_access_project / _check_project_access):
+  - ADMIN: always True
+  - CLIENT: project.client_id == user.id
+  - SUB_ADMIN: ClientSubAdminAssignment row must exist for (sub_admin_id, client_id)
+
+SEEDED USERS (created at startup if not existing):
+  admin    / admin123    → ADMIN
+  subadmin / subadmin123 → SUB_ADMIN
+  client   / client123   → CLIENT
+  Default ProcessingNode: hostname=nodeodm, port=3000, label="Local NodeODM", token=""
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+8. API SURFACE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+AUTH
+  POST /api/auth/login         body: {username, password} → {access_token, token_type}
+  GET  /api/auth/me            → UserResponse
+
+USERS (require_admin unless noted)
+  GET  /api/users              → UserResponse[]
+  GET  /api/users/clients      → UserResponse[] (SUB_ADMIN sees only assigned clients)
+  GET  /api/users/sub-admins   → UserResponse[]
+  POST /api/users              body: UserCreate → UserResponse
+  PUT  /api/users/{id}         body: UserUpdate → UserResponse
+  DELETE /api/users/{id}
+  PUT  /api/users/clients/{id}/sub-admins   body: {sub_admin_ids: UUID[]}
+  PUT  /api/users/sub-admins/{id}/clients   body: {client_ids: UUID[]}
+
+PROJECTS (require_staff for write; get_current_user for read)
+  GET  /api/projects           → ProjectListResponse[] (role-filtered)
+  GET  /api/projects/{id}      → ProjectResponse
+  POST /api/projects           body: ProjectCreate → ProjectResponse (require_admin)
+  PUT  /api/projects/{id}      body: ProjectUpdate → ProjectResponse (require_staff)
+  DELETE /api/projects/{id}    (require_admin)
+  POST /api/projects/{id}/boundary  body: {geojson} → clips trees outside boundary
+  POST /api/projects/{id}/process   → triggers process_project_files Celery task
+  GET  /api/projects/{id}/processing-status → {status, stage, progress, error}
+
+TREES & ANALYTICS (get_current_user read; require_staff write)
+  GET  /api/projects/{id}/trees              → GeoJSON FeatureCollection
+  GET  /api/projects/{id}/trees/list         query: health, search, page, per_page
+  GET  /api/projects/{id}/analytics          → AnalyticsResponse (counts, health breakdown,
+                                                height buckets)
+  POST /api/projects/{id}/trees/manual       body: ManualTreeCreate (lat,lon,bbox,height,health)
+  POST /api/projects/{id}/trees/manual/bbox  body: ManualTreeBboxCreate (bbox corners only)
+  PUT  /api/projects/{id}/trees/{tid}/bbox   body: ManualTreeBboxUpdate
+  DELETE /api/projects/{id}/trees/{tid}      → renumbers remaining trees
+  POST /api/projects/{id}/trees/calculate-heights  → batch height+health for pending trees
+
+UPLOAD (require_staff)
+  POST /api/projects/{id}/upload/{layer_type}
+    layer_type: ortho|dtm|dsm|boundary|trees|health
+    allowed extensions: .shp .shx .dbf .prj .cpg .tif .tiff
+    ortho/dtm/dsm TIFs are renamed to {type}.tif on save
+  POST /api/projects/{id}/drone-images       multipart upload of image files
+  POST /api/projects/{id}/drone-process      body: DroneProcessRequest {node_id?}
+  GET  /api/projects/{id}/drone-progress     → DroneProgressResponse {stage, percent}
+  POST /api/projects/{id}/drone-cancel
+  POST /api/projects/{id}/drone-restart
+
+PROCESSING NODES (require_admin)
+  GET    /api/processing-nodes/      → ProcessingNodeResponse[]
+  POST   /api/processing-nodes/      body: ProcessingNodeCreate
+  PUT    /api/processing-nodes/{id}  body: ProcessingNodeUpdate
+  DELETE /api/processing-nodes/{id}
+
+VEGETATION INDEX
+  GET  /api/projects/{id}/vegetation-indices
+    → {indices: [{name,label,desc,range,bands}], palettes: str[], default_index: str}
+  GET  /tiles/{id}/vi/{z}/{x}/{y}.png?index=GCC&palette=rdylgn
+    → 256×256 PNG rendered by vegetation.py engine
+
+STATIC TILE SERVING (StaticFiles mount, lowest priority)
+  GET  /tiles/{project_id}/ortho/{z}/{x}/{y}.png
+  GET  /tiles/{project_id}/dtm/{z}/{x}/{y}.png
+  GET  /tiles/{project_id}/dsm/{z}/{x}/{y}.png
+
+HEALTH
+  GET  /api/health → {"status": "ok"}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+9. VEGETATION INDEX ENGINE (backend/app/vegetation.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PALETTES: rdylgn (default) | spectral | viridis | jet | magma
+  Each palette is a list of ~16-20 RGB tuples; interpolated into 256-entry LUT
+  LUTs are pre-built at module load with _LUTS = {name: _build_lut(name)}
+
+INDICES dict structure:
+  {
+    "GCC":   {"formula": "gcc",   "range": (0, 1),    "bands": ["R","G","B"], ...},
+    "VARI":  {"formula": "vari",  "range": (-1, 1),   "bands": ["R","G","B"], ...},
+    "EXG":   {"formula": "exg",   "range": (-2, 2),   "bands": ["R","G","B"], ...},
+    "GLI":   {"formula": "gli",   "range": (-1, 1),   "bands": ["R","G","B"], ...},
+    "MPRI":  {"formula": "mpri",  "range": (-1, 1),   "bands": ["R","G","B"], ...},
+    "vNDVI": {"formula": "vndvi", "range": (0, 1),    "bands": ["R","G","B"], ...},
+    "NDVI":  {"formula": "ndvi",  "range": (-1, 1),   "bands": ["R","G","NIR"], ...},
+    "GNDVI": {"formula": "gndvi", "range": (-1, 1),   "bands": ["G","NIR"], ...},
+    "SAVI":  {"formula": "savi",  "range": (-1, 1),   "bands": ["R","NIR"], ...},
+    "EVI":   {"formula": "evi",   "range": (-1, 2),   "bands": ["R","G","NIR","B"], ...},
+    "ENDVI": {"formula": "endvi", "range": (-1, 1),   "bands": ["G","NIR","B"], ...},
+    "LAI":   {"formula": "lai",   "range": (0, 8),    "bands": ["R","NIR"], ...},
+  }
+
+TILE RENDERING FLOW:
+  1. Lookup project ortho path: /app/tiles/{project_id}/ortho.tif (uses uploads dir)
+  2. lru_cache on rasterio.open handle per project
+  3. Convert XYZ tile coords to bounding box (mercator → WGS84)
+  4. Read raster window from bounds
+  5. Compute VI formula on numpy arrays (float32, NaN-safe)
+  6. Normalise to [0,255] using index range
+  7. Apply LUT → RGB array
+  8. Set alpha=0 for NaN pixels
+  9. PIL.Image → PNG bytes in io.BytesIO → return Response(media_type="image/png")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+10. FRONTEND ARCHITECTURE PATTERNS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ROUTING (App.jsx):
+  /login                         → LoginPage (public)
+  /admin                         → AdminDashboard (requiredRole="admin")
+  /admin/clients                 → AdminClients (requiredRole="admin")
+  /admin/clients/:id/projects    → ClientProjects (requiredRole="staff")
+  /admin/sub-admins              → AdminSubAdmins (requiredRole="admin")
+  /admin/projects/:id/edit       → ProjectEdit (requiredRole="staff")
+  /admin/projects/new            → ProjectWizard (requiredRole="staff")
+  /client/projects/:id           → MapView + AnalyticsView tabs (any auth)
+
+MAP LAYER STATE (MapView.jsx):
+  layers = {
+    base: "ortho" | "dtm" | "dsm" | "plant_health",
+    overlays: { boundary: bool, trees: bool, health: bool, height: bool }
+  }
+  selectedIndex: string (VI name, e.g. "GCC")
+  selectedPalette: string (e.g. "rdylgn")
+  viRange: [min, max]  (from VI metadata)
+
+  MapLibre source for VI tiles:
+    type: "raster", tiles: ["/tiles/{projectId}/vi/{z}/{x}/{y}.png?index=...&palette=..."]
+    tileSize: 256
+  Trees rendered as: type="circle" layer on GeoJSON source
+  Health rendered as: circle-color expression on health_status property
+
+TREE ANNOTATION (TreeAnnotationPanel.jsx):
+  Mode: "draw" | "select" | "boundary"
+  Draw bbox: mousedown → mousemove → mouseup → POST /api/.../trees/manual/bbox
+  Move: drag existing bbox → PUT /api/.../trees/{id}/bbox
+  Resize: drag corner handle → PUT /api/.../trees/{id}/bbox
+  Boundary: polygon click-to-add-points → POST /api/.../boundary → re-fetch trees
+  All coords converted: map pixel → maplibre.unproject → lat/lon
+
+AXIOS CLIENT (api/client.js):
+  baseURL = "/api"  (nginx proxies /api → backend:8000)
+  request interceptor: config.headers.Authorization = "Bearer " + localStorage.token
+  response interceptor: 401 → AuthContext.logout() → navigate("/login")
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+11. YOLOv9 INFERENCE PATTERN (in tasks.py, mirrors tools/detectv2.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Load ortho.tif with rasterio; read RGB bands; scale each band to [0,255] via
+   1st/99th percentile stretch
+2. Slice into overlapping tiles (configurable, typically 640×640 + 20% overlap)
+3. For each tile: run ONNX model inference
+4. Collect bboxes (xmin, ymin, xmax, ymax in tile-local pixels)
+5. Offset by tile origin to full-image pixel coords
+6. Run custom_nms_keep_largest():
+   - Sort by area descending
+   - For each pair: compute intersection / smaller_area (IoSmaller)
+   - If IoSmaller > 0.5: discard smaller box
+7. Convert surviving bbox centers from pixel → world coords via:
+   map_x, map_y = rasterio.transform.xy(transform, row, col)
+   lon, lat = Transformer(src_crs → EPSG:4326).transform(map_x, map_y)
+8. Insert Tree records (detection_source="yolo", confidence=score)
+
+CHM HEIGHT EXTRACTION (per tree):
+  With rasterio.open(chm.tif):
+    window = from_bounds(bbox_lon_min, bbox_lat_min, bbox_lon_max, bbox_lat_max, transform)
+    data = src.read(1, window=window)
+    height = np.nanpercentile(data[data > 0], 98)
+
+HEALTH CLASSIFICATION (per tree, from ortho):
+  With rasterio.open(ortho.tif):
+    window = from_bounds(bbox, transform)
+    r, g, b = src.read([1,2,3], window=window)  # uint8 or float
+    VARI = (g - r) / (g + r - b + 1e-10)
+    GCC  = g / (r + g + b + 1e-10)
+    mean_vari = np.nanmean(VARI)
+    mean_gcc  = np.nanmean(GCC)
+    if mean_vari > 0.1 and mean_gcc > 0.35:  → HEALTHY
+    elif mean_vari > 0  and mean_gcc >= 0.30: → MODERATE
+    else:                                      → POOR
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+12. CODING PATTERNS & CONVENTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+BACKEND:
+- All UUIDs use PostgreSQL UUID type (uuid.uuid4 default)
+- No Alembic; migrations via raw SQL in seed.py run_migrations() at startup
+- Settings singleton via @lru_cache on get_settings()
+- DB sessions: Depends(get_db) yields SessionLocal(), closes in finally
+- All routers prefixed /api/... and tagged for OpenAPI grouping
+- FastAPI lifespan (not deprecated @app.on_event) for startup logic
+- File uploads saved to UPLOAD_DIR/{project_id}/ with normalized names
+- Tile output: UPLOAD_DIR/{project_id}/ortho.tif etc; TILES_DIR/{project_id}/{type}/
+- redis_client (direct) used for distributed locking and progress reporting
+  alongside Celery broker (same Redis instance)
+
+FRONTEND:
+- All API calls through api/client.js (Axios instance); never raw fetch
+- AuthContext provides user object and role helpers; consumed via useContext
+- Map instance stored in useRef (map.current) NOT useState (avoid re-renders)
+- Layer state in useState; map updates triggered by useEffect on state change
+- All page components receive projectId as prop or from useParams
+- Tailwind for all styling; no CSS modules or styled-components
+- lucide-react for icons (not react-icons or heroicons)
+- react-hot-toast for all notifications (not alert() or custom toast)
+
+FILE NAMING:
+- React components: PascalCase .jsx
+- API utilities: camelCase .js
+- Python modules: snake_case .py
+- Docker services: kebab-case (celery-worker, celery-beat)
+
+BUILD & DEPLOY:
+- Backend code changes require: docker compose build --no-cache backend
+  (no volume mount of source in production container)
+- Frontend changes require: docker compose build --no-cache frontend
+- Or use: ./deploy.sh --service backend (or frontend)
+- After rebuild: docker compose up -d (only restarts changed services)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+13. PROJECT STATUS LIFECYCLE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DRAFT → (staff creates project) → CREATED → (client assigned) → UNASSIGNED
+→ (files uploading) → UPLOADING → (Celery task starts) → PROCESSING
+→ (done, awaiting review) → REVIEW_PENDING → (admin reviews) → REVIEW
+→ (admin marks ready) → READY → (client can view)
+ERROR: set if any pipeline stage fails (processing_error TEXT stores message)
+
+CLIENT VISIBILITY: project.status must be READY for client to see it
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+14. NOTABLE DESIGN DECISIONS & QUIRKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Static tile serving vs dynamic VI: /tiles/{id}/vi/ is a FastAPI route registered
+   BEFORE the StaticFiles mount. Order matters — StaticFiles is mounted last in main.py
+   so it acts as fallback for ortho/dtm/dsm tiles.
+
+2. Tree bbox stored as 4 corner lat/lon columns (not PostGIS polygon). Simplifies
+   frontend rendering but requires manual bbox calculation for spatial operations.
+
+3. plain_password stored in DB for admin visibility of client passwords (convenience
+   feature; not security best practice — flag this if deploying externally).
+
+4. NodeODM default seeded as hostname=nodeodm, port=3000 (Docker internal network name).
+   External NodeODM instances require explicit admin configuration.
+
+5. CHM stored as chm.tif in uploads directory (not tiles). VI engine reads ortho.tif
+   from uploads directory (not tiles directory). Both paths are different from tile output.
+
+6. Celery worker concurrency=2 (CLI arg in docker-compose). Increasing this may cause
+   OOM with NodeODM running simultaneously on same host.
+
+7. GDAL is called via subprocess (gdal2tiles.py) not Python bindings, to avoid
+   memory issues with large rasters in the Celery worker process.
+
+8. Frontend nginx serves the React SPA with try_files fallback for client-side routing.
+   All /api and /tiles requests are proxy_pass to the backend container.
+
+9. All tree_index values are sequential integers starting at 1 per project.
+   DELETE endpoint renumbers remaining trees to maintain contiguous numbering.
+
+10. Drone job is 1:1 with project (UNIQUE constraint on project_id in drone_processing_jobs).
+    Restart is handled by resetting the existing job record, not creating a new one.
+================================================================================
+END OF AI CONTEXT DOCUMENT
+================================================================================
