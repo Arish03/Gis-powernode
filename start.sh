@@ -64,7 +64,7 @@ docker compose ps --format "table {{.Name}}\t{{.Status}}" 2>/dev/null
 
 echo ""
 echo -e "${BLUE}====================================================${NC}"
-echo -e "  Frontend:  ${GREEN}http://localhost:5000${NC}"
+echo -e "  Frontend:  ${GREEN}http://localhost:5001${NC}"
 echo -e "  API Docs:  ${GREEN}http://localhost:8000/api/docs${NC}"
 echo -e "  Logs:      ${YELLOW}docker compose logs -f${NC}"
 echo -e "  Stop:      ${YELLOW}./stop.sh${NC}"
@@ -72,7 +72,7 @@ echo -e "${BLUE}====================================================${NC}"
 
 # Open browser
 if command -v xdg-open &>/dev/null; then
-    xdg-open http://localhost:5000 &>/dev/null
+    xdg-open http://localhost:5001 &>/dev/null
 elif command -v open &>/dev/null; then
-    open http://localhost:5000 &>/dev/null
+    open http://localhost:5001 &>/dev/null
 fi
