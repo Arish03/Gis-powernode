@@ -40,13 +40,18 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Extract the zip
+# Extract the zip or rename if it's a raw file
 if command -v unzip &>/dev/null; then
-    unzip -o "$ZIP_FILE" -d "$MODEL_DIR"
-    rm -f "$ZIP_FILE"
+    if unzip -t "$ZIP_FILE" &>/dev/null; then
+        unzip -o "$ZIP_FILE" -d "$MODEL_DIR"
+        rm -f "$ZIP_FILE"
+    else
+        echo -e "${YELLOW}File is not a zip archive. Assuming it's the raw model file...${NC}"
+        mv "$ZIP_FILE" "$MODEL_FILE"
+    fi
 else
-    echo -e "${RED}Error: unzip is required to extract the model.${NC}"
-    exit 1
+    echo -e "${YELLOW}Warning: unzip is not installed. Assuming downloaded file is the raw model...${NC}"
+    mv "$ZIP_FILE" "$MODEL_FILE"
 fi
 
 if [ -f "$MODEL_FILE" ]; then
