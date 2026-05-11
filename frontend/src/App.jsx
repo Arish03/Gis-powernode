@@ -25,7 +25,8 @@ import PowerlineReportView from './pages/client/PowerlineReportView';
 import { useState, useEffect } from 'react';
 import { FolderOpen, ArrowLeft, Layers3 } from 'lucide-react';
 import api from './api/client';
-import Navbar from './components/Navbar';
+import SidebarLayout from './components/SidebarLayout';
+import TopbarActions from './components/TopbarActions';
 
 function ClientPortal() {
   const [projects, setProjects] = useState([]);
@@ -73,12 +74,8 @@ function ClientPortal() {
 
   if (projects.length === 0) {
     return (
-      <div className="page-bg min-h-screen">
-        <div className="blob-container">
-          <div className="blob blob-green" />
-        </div>
-        <Navbar />
-        <main className="relative z-10 max-w-screen-xl mx-auto px-4 py-16 flex justify-center">
+      <SidebarLayout title="Client Portal">
+        <div className="flex justify-center py-16">
           <div className="bg-white/70 backdrop-blur-xl border border-white/90 rounded-2xl shadow-glass p-12 flex flex-col items-center text-center max-w-lg">
             <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
               <FolderOpen size={28} className="text-slate-400" />
@@ -95,8 +92,8 @@ function ClientPortal() {
               </button>
             )}
           </div>
-        </main>
-      </div>
+        </div>
+      </SidebarLayout>
     );
   }
 
@@ -104,40 +101,46 @@ function ClientPortal() {
   const isPowerline = selectedProject?.project_type === 'POWERLINE';
 
   return (
-    <div className="page-bg min-h-screen flex flex-col">
-      <Navbar
-        projects={projects}
-        selectedProjectId={selectedProjectId}
-        onProjectChange={setSelectedProjectId}
-        activeView={activeView}
-        onViewChange={setActiveView}
-        showViewToggle={!!selectedProjectId && !isPowerline}
-        showProjectSelector={true}
-      />
-      {groupCount > 0 && (
-        <div className="relative z-10 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 pt-3">
-          <button
-            onClick={() => navigate('/client/groups')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl
-                       bg-gradient-to-r from-primary-500 to-teal-500 text-white text-sm font-semibold
-                       shadow-green-glow-sm hover:shadow-green-glow transition"
-          >
-            <Layers3 size={16} />
-            View Group Analyses
-            <span className="px-1.5 py-0.5 rounded-md bg-white/25 text-xs font-bold">{groupCount}</span>
-          </button>
-        </div>
-      )}
-      <main className="flex-1 w-full flex flex-col relative z-10">
-        {isPowerline ? (
-          <PowerlineReportView projectId={selectedProjectId} projectInfo={selectedProject} />
-        ) : activeView === 'map' ? (
-          <MapView projectId={selectedProjectId} projectInfo={selectedProject} />
-        ) : (
-          <AnalyticsView projectId={selectedProjectId} projectInfo={selectedProject} onLocateOnMap={() => setActiveView('map')} />
+    <SidebarLayout
+      title="Client Portal"
+      actions={
+        <TopbarActions
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onProjectChange={setSelectedProjectId}
+          activeView={activeView}
+          onViewChange={setActiveView}
+          showViewToggle={!!selectedProjectId && !isPowerline}
+          showProjectSelector={true}
+        />
+      }
+    >
+      <div className="flex flex-col h-[calc(100vh-120px)] space-y-4">
+        {groupCount > 0 && (
+          <div className="shrink-0">
+            <button
+              onClick={() => navigate('/client/groups')}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl
+                         bg-gradient-to-r from-primary-500 to-teal-500 text-white text-sm font-semibold
+                         shadow-green-glow-sm hover:shadow-green-glow transition"
+            >
+              <Layers3 size={16} />
+              View Group Analyses
+              <span className="px-1.5 py-0.5 rounded-md bg-white/25 text-xs font-bold">{groupCount}</span>
+            </button>
+          </div>
         )}
-      </main>
-    </div>
+        <div className="flex-1 relative rounded-2xl overflow-hidden glass-card p-1">
+          {isPowerline ? (
+            <PowerlineReportView projectId={selectedProjectId} projectInfo={selectedProject} />
+          ) : activeView === 'map' ? (
+            <MapView projectId={selectedProjectId} projectInfo={selectedProject} />
+          ) : (
+            <AnalyticsView projectId={selectedProjectId} projectInfo={selectedProject} onLocateOnMap={() => setActiveView('map')} />
+          )}
+        </div>
+      </div>
+    </SidebarLayout>
   );
 }
 
@@ -162,39 +165,43 @@ function AdminProjectView() {
   );
 
   if (!project) return (
-    <div className="page-bg min-h-screen">
-      <Navbar />
-      <main className="relative z-10 max-w-screen-xl mx-auto px-4 py-16 text-center">
+    <SidebarLayout title="Project View">
+      <div className="text-center py-16">
         <p className="text-red-500 font-bold">Project not found</p>
         <button onClick={() => navigate('/admin')} className="btn-secondary mt-4">Back to Admin</button>
-      </main>
-    </div>
+      </div>
+    </SidebarLayout>
   );
 
   return (
-    <div className="page-bg min-h-screen flex flex-col">
-      <Navbar
-        projects={[project]}
-        selectedProjectId={project.id}
-        onProjectChange={() => {}}
-        activeView={activeView}
-        onViewChange={setActiveView}
-        showViewToggle={project.project_type !== 'POWERLINE'}
-        showProjectSelector={false}
-      />
-      {/* Back button — try to navigate back to client's project list */}
-      <button
-        onClick={() => {
-          const clientId = project.client_id;
-          navigate(clientId ? `/admin/clients/${clientId}/projects` : '/admin');
-        }}
-        className="fixed top-20 left-4 z-40 flex items-center gap-1.5 px-3 py-1.5 rounded-xl
-                   bg-white/80 backdrop-blur-sm border border-slate-200 shadow-sm
-                   text-xs font-semibold text-slate-600 hover:bg-white hover:text-slate-800 transition-all"
-      >
-        <ArrowLeft size={14} /> Back
-      </button>
-      <main className="flex-1 w-full flex flex-col relative z-10">
+    <SidebarLayout
+      title={project.name || "Project View"}
+      actions={
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              const clientId = project.client_id;
+              navigate(clientId ? `/admin/clients/${clientId}/projects` : '/admin');
+            }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl
+                       bg-white/80 backdrop-blur-sm border border-slate-200 shadow-sm
+                       text-xs font-semibold text-slate-600 hover:bg-white hover:text-slate-800 transition-all"
+          >
+            <ArrowLeft size={14} /> Back
+          </button>
+          <TopbarActions
+            projects={[project]}
+            selectedProjectId={project.id}
+            onProjectChange={() => {}}
+            activeView={activeView}
+            onViewChange={setActiveView}
+            showViewToggle={project.project_type !== 'POWERLINE'}
+            showProjectSelector={false}
+          />
+        </div>
+      }
+    >
+      <div className="flex-1 relative rounded-2xl overflow-hidden glass-card p-1 h-[calc(100vh-120px)]">
         {project.project_type === 'POWERLINE' ? (
           <PowerlineReportView projectId={project.id} projectInfo={project} adminPreview />
         ) : activeView === 'map' ? (
@@ -202,8 +209,8 @@ function AdminProjectView() {
         ) : (
           <AnalyticsView projectId={project.id} projectInfo={project} onLocateOnMap={() => setActiveView('map')} />
         )}
-      </main>
-    </div>
+      </div>
+    </SidebarLayout>
   );
 }
 

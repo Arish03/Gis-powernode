@@ -2,25 +2,30 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, HelpCircle, Check } from 'lucide-react';
 import api from '../../api/client';
-import Navbar from '../../components/Navbar';
+import SidebarLayout from '../../components/SidebarLayout';
 import TreeAnnotationPanel from '../../components/TreeAnnotationPanel'; // Preserved internal logic
 import GlassCard from '../../components/ui/GlassCard';
 import { useAuth } from '../../contexts/AuthContext';
-
 export default function ProjectEdit() {
-  const { projectId: id } = useParams();
+  const {
+    projectId: id
+  } = useParams();
   const navigate = useNavigate();
-  const { isAdmin, isStaff } = useAuth();
+  const {
+    isAdmin,
+    isStaff
+  } = useAuth();
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
   useEffect(() => {
     const fetchProject = async () => {
       try {
         const res = await api.get(`/projects/${id}`);
         if (res.data?.project_type === 'POWERLINE') {
-          navigate(`/admin/projects/${id}/powerline/annotate`, { replace: true });
+          navigate(`/admin/projects/${id}/powerline/annotate`, {
+            replace: true
+          });
           return;
         }
         setProject(res.data);
@@ -33,44 +38,34 @@ export default function ProjectEdit() {
     };
     fetchProject();
   }, [id, navigate]);
-
   const handleMarkReady = async () => {
     try {
-      await api.put(`/projects/${id}`, { status: 'READY' });
+      await api.put(`/projects/${id}`, {
+        status: 'READY'
+      });
       navigate('/admin');
     } catch (err) {
       console.error('Failed to update status', err);
       alert('Failed to publish project.');
     }
   };
-
   if (loading) {
-    return (
-      <div className="page-bg flex items-center justify-center">
+    return <SidebarLayout title="Project Edit">
         <div className="spinner" />
-      </div>
-    );
+      </SidebarLayout>;
   }
-
   if (error || !project) {
-    return (
-      <div className="page-bg pt-20 px-6 text-center">
+    return <SidebarLayout title="Project Edit">
         <div className="text-red-500 font-bold mb-2">Error</div>
         <div className="text-slate-600">{error}</div>
         <button onClick={() => navigate('/admin')} className="mt-4 btn-secondary">Back to Admin</button>
-      </div>
-    );
+      </SidebarLayout>;
   }
-
-  return (
-    <div className="page-bg min-h-screen flex flex-col">
+  return <SidebarLayout title="Project Edit">
        {/* Background blobs */}
-      <div className="blob-container">
-        <div className="blob blob-green fixed top-0 right-0 -m-32" />
-        <div className="blob blob-blue fixed bottom-0 left-0 -m-32" />
-      </div>
+      
 
-      <Navbar />
+      
 
       <main className="flex-1 w-full max-w-screen-2xl mx-auto p-4 sm:p-6 flex flex-col relative z-10 transition-all">
         {/* Header section */}
@@ -88,16 +83,12 @@ export default function ProjectEdit() {
              <button className="btn-ghost text-slate-500 gap-1.5" title="Hold Shift + drag to draw new boxes. Select box and press Backspace to delete.">
                 <HelpCircle size={15} /> <span className="text-xs">Shortcuts</span>
              </button>
-             {isStaff && project.status !== 'READY' && (
-               <button onClick={handleMarkReady} className="btn-primary gap-2 text-sm px-4 py-2">
+             {isStaff && project.status !== 'READY' && <button onClick={handleMarkReady} className="btn-primary gap-2 text-sm px-4 py-2">
                  <Save size={15} /> Publish as Ready
-               </button>
-             )}
-             {isStaff && project.status === 'READY' && (
-               <button onClick={() => navigate(-1)} className="btn-primary gap-2 text-sm px-4 py-2">
+               </button>}
+             {isStaff && project.status === 'READY' && <button onClick={() => navigate(-1)} className="btn-primary gap-2 text-sm px-4 py-2">
                  <Check size={15} /> Done Editing
-               </button>
-             )}
+               </button>}
           </div>
         </div>
 
@@ -108,6 +99,5 @@ export default function ProjectEdit() {
            </div>
         </GlassCard>
       </main>
-    </div>
-  );
+    </SidebarLayout>;
 }

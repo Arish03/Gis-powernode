@@ -1,49 +1,61 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  ArrowLeft, UploadCloud, Trash2, Send, Save, Loader2,
-  CheckCircle2, ShieldAlert, Plus, X, Image as ImageIcon,
-} from 'lucide-react';
+import { ArrowLeft, UploadCloud, Trash2, Send, Save, Loader2, CheckCircle2, ShieldAlert, Plus, X, Image as ImageIcon } from 'lucide-react';
 import api from '../../api/client';
-import Navbar from '../../components/Navbar';
+import SidebarLayout from '../../components/SidebarLayout';
 import GlassCard from '../../components/ui/GlassCard';
 import ConfirmModal from '../../components/ConfirmModal';
 import { useAuth } from '../../contexts/AuthContext';
-
-const SEVERITY_OPTIONS = [
-  { value: 'S5', label: 'Category A — Critical', color: '#b91c1c' },
-  { value: 'S4', label: 'Category B — Major', color: '#ea580c' },
-  { value: 'S3', label: 'Category C — Minor', color: '#d97706' },
-  { value: 'S2', label: 'Kuo — Observation', color: '#65a30d' },
-  { value: 'S1', label: 'N/A', color: '#16a34a' },
-  { value: 'POI', label: 'POI', color: '#2563eb' },
-];
+const SEVERITY_OPTIONS = [{
+  value: 'S5',
+  label: 'Category A — Critical',
+  color: '#b91c1c'
+}, {
+  value: 'S4',
+  label: 'Category B — Major',
+  color: '#ea580c'
+}, {
+  value: 'S3',
+  label: 'Category C — Minor',
+  color: '#d97706'
+}, {
+  value: 'S2',
+  label: 'Kuo — Observation',
+  color: '#65a30d'
+}, {
+  value: 'S1',
+  label: 'N/A',
+  color: '#16a34a'
+}, {
+  value: 'POI',
+  label: 'POI',
+  color: '#2563eb'
+}];
 const SEV_COLOR = Object.fromEntries(SEVERITY_OPTIONS.map(o => [o.value, o.color]));
 const SEV_LABEL = Object.fromEntries(SEVERITY_OPTIONS.map(o => [o.value, o.label.split(' —')[0]]));
-const ISSUE_TYPE_SUGGESTIONS = [
-  'Conductor Damage', 'Corrosion', 'Insulator Damage',
-  'Vegetation Encroachment', 'Safety & Security', 'Tower Defect',
-  'Hardware Failure', 'Miscellaneous',
-];
-const IMAGE_TAG_OPTIONS = [
-  'Structure', 'Circuit Top', 'Circuit Middle', 'Circuit Bottom', 'Circuit Ground',
-];
+const ISSUE_TYPE_SUGGESTIONS = ['Conductor Damage', 'Corrosion', 'Insulator Damage', 'Vegetation Encroachment', 'Safety & Security', 'Tower Defect', 'Hardware Failure', 'Miscellaneous'];
+const IMAGE_TAG_OPTIONS = ['Structure', 'Circuit Top', 'Circuit Middle', 'Circuit Bottom', 'Circuit Ground'];
 const COMPONENT_TAG_DEFAULTS = ['Insulators', 'Clamps', 'Power Line', 'Fasteners'];
 const HANDLE_SIZE = 8;
-
 export default function PowerlineAnnotator() {
-  const { projectId } = useParams();
+  const {
+    projectId
+  } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const {
+    user
+  } = useAuth();
   const isAdmin = user?.role === 'ADMIN';
-
   const [project, setProject] = useState(null);
   const [images, setImages] = useState([]);
   const [selectedImageId, setSelectedImageId] = useState(null);
   const [annotations, setAnnotations] = useState([]); // for current image
   const [selectedAnnId, setSelectedAnnId] = useState(null);
   const [imageObjectUrl, setImageObjectUrl] = useState(null);
-  const [imageNatural, setImageNatural] = useState({ w: 0, h: 0 });
+  const [imageNatural, setImageNatural] = useState({
+    w: 0,
+    h: 0
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saveStatus, setSaveStatus] = useState(''); // '', 'saving', 'saved'
@@ -55,13 +67,13 @@ export default function PowerlineAnnotator() {
     try {
       const stored = JSON.parse(localStorage.getItem('pl:componentTags') || '[]');
       return Array.isArray(stored) ? stored : [];
-    } catch { return []; }
+    } catch {
+      return [];
+    }
   });
   const [customTagInput, setCustomTagInput] = useState('');
   const [showCustomTagInput, setShowCustomTagInput] = useState(false);
-
   const allComponentTags = [...new Set([...COMPONENT_TAG_DEFAULTS, ...componentTags])];
-
   const addCustomComponentTag = () => {
     const v = customTagInput.trim();
     if (!v) return;
@@ -81,10 +93,7 @@ export default function PowerlineAnnotator() {
   const [scale, setScale] = useState(1); // pixels per natural pixel
   const [drag, setDrag] = useState(null); // { mode: 'create'|'move'|'resize', start, original, handle }
   const [pendingNew, setPendingNew] = useState(null);
-
-  const [inspectorName, setInspectorName] = useState(
-    () => localStorage.getItem('powerline_inspector_name') || ''
-  );
+  const [inspectorName, setInspectorName] = useState(() => localStorage.getItem('powerline_inspector_name') || '');
 
   // ── Load project + images ─────────────────────────────────────
   useEffect(() => {
@@ -92,10 +101,7 @@ export default function PowerlineAnnotator() {
     (async () => {
       setLoading(true);
       try {
-        const [p, i] = await Promise.all([
-          api.get(`/projects/${projectId}`),
-          api.get(`/projects/${projectId}/powerline/images`),
-        ]);
+        const [p, i] = await Promise.all([api.get(`/projects/${projectId}`), api.get(`/projects/${projectId}/powerline/images`)]);
         if (cancelled) return;
         setProject(p.data);
         if (p.data.project_type !== 'POWERLINE') {
@@ -112,7 +118,9 @@ export default function PowerlineAnnotator() {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Load image bytes + annotations when selection changes ────
@@ -126,12 +134,9 @@ export default function PowerlineAnnotator() {
     let createdUrl = null;
     (async () => {
       try {
-        const [imgRes, annRes] = await Promise.all([
-          api.get(`/projects/${projectId}/powerline/images/${selectedImageId}/file`, {
-            responseType: 'blob',
-          }),
-          api.get(`/projects/${projectId}/powerline/images/${selectedImageId}/annotations`),
-        ]);
+        const [imgRes, annRes] = await Promise.all([api.get(`/projects/${projectId}/powerline/images/${selectedImageId}/file`, {
+          responseType: 'blob'
+        }), api.get(`/projects/${projectId}/powerline/images/${selectedImageId}/annotations`)]);
         if (cancelled) return;
         createdUrl = URL.createObjectURL(imgRes.data);
         setImageObjectUrl(createdUrl);
@@ -154,7 +159,10 @@ export default function PowerlineAnnotator() {
     const img = new Image();
     img.onload = () => {
       imgElRef.current = img;
-      setImageNatural({ w: img.naturalWidth, h: img.naturalHeight });
+      setImageNatural({
+        w: img.naturalWidth,
+        h: img.naturalHeight
+      });
     };
     img.src = imageObjectUrl;
   }, [imageObjectUrl]);
@@ -225,46 +233,36 @@ export default function PowerlineAnnotator() {
         }
       }
     };
-
     annotations.forEach(a => drawBox(a, a.id === selectedAnnId));
     if (pendingNew) {
       ctx.lineWidth = 2;
       ctx.strokeStyle = '#0ea5e9';
       ctx.setLineDash([4, 4]);
-      ctx.strokeRect(
-        pendingNew.bbox_x * dispW,
-        pendingNew.bbox_y * dispH,
-        pendingNew.bbox_width * dispW,
-        pendingNew.bbox_height * dispH,
-      );
+      ctx.strokeRect(pendingNew.bbox_x * dispW, pendingNew.bbox_y * dispH, pendingNew.bbox_width * dispW, pendingNew.bbox_height * dispH);
       ctx.setLineDash([]);
     }
   }, [annotations, selectedAnnId, scale, imageNatural, pendingNew, imageObjectUrl]);
 
   // ── Mouse handlers ───────────────────────────────────────────
-  const getMouseNorm = (e) => {
+  const getMouseNorm = e => {
     const rect = canvasRef.current.getBoundingClientRect();
     const xPx = e.clientX - rect.left;
     const yPx = e.clientY - rect.top;
     return {
       nx: Math.max(0, Math.min(1, xPx / rect.width)),
       ny: Math.max(0, Math.min(1, yPx / rect.height)),
-      xPx, yPx,
+      xPx,
+      yPx
     };
   };
-
   const findHitAnnotation = (nx, ny) => {
     // top-most last (drawn last), so iterate reverse
     for (let i = annotations.length - 1; i >= 0; i--) {
       const a = annotations[i];
-      if (
-        nx >= a.bbox_x && nx <= a.bbox_x + a.bbox_width &&
-        ny >= a.bbox_y && ny <= a.bbox_y + a.bbox_height
-      ) return a;
+      if (nx >= a.bbox_x && nx <= a.bbox_x + a.bbox_width && ny >= a.bbox_y && ny <= a.bbox_y + a.bbox_height) return a;
     }
     return null;
   };
-
   const findHandleHit = (a, xPx, yPx) => {
     if (!canvasRef.current) return null;
     const rect = canvasRef.current.getBoundingClientRect();
@@ -280,16 +278,30 @@ export default function PowerlineAnnotator() {
     }
     return null;
   };
-
-  const onMouseDown = (e) => {
+  const onMouseDown = e => {
     if (e.button !== 0) return;
-    const { nx, ny, xPx, yPx } = getMouseNorm(e);
+    const {
+      nx,
+      ny,
+      xPx,
+      yPx
+    } = getMouseNorm(e);
     if (selectedAnnId) {
       const sel = annotations.find(a => a.id === selectedAnnId);
       if (sel) {
         const handle = findHandleHit(sel, xPx, yPx);
         if (handle) {
-          setDrag({ mode: 'resize', handle, original: { ...sel }, start: { nx, ny } });
+          setDrag({
+            mode: 'resize',
+            handle,
+            original: {
+              ...sel
+            },
+            start: {
+              nx,
+              ny
+            }
+          });
           return;
         }
       }
@@ -297,19 +309,41 @@ export default function PowerlineAnnotator() {
     const hit = findHitAnnotation(nx, ny);
     if (hit) {
       setSelectedAnnId(hit.id);
-      setDrag({ mode: 'move', original: { ...hit }, start: { nx, ny } });
+      setDrag({
+        mode: 'move',
+        original: {
+          ...hit
+        },
+        start: {
+          nx,
+          ny
+        }
+      });
       setPendingNew(null);
       return;
     }
     // Start creating a new bbox
     setSelectedAnnId(null);
-    setPendingNew({ bbox_x: nx, bbox_y: ny, bbox_width: 0, bbox_height: 0 });
-    setDrag({ mode: 'create', start: { nx, ny } });
+    setPendingNew({
+      bbox_x: nx,
+      bbox_y: ny,
+      bbox_width: 0,
+      bbox_height: 0
+    });
+    setDrag({
+      mode: 'create',
+      start: {
+        nx,
+        ny
+      }
+    });
   };
-
-  const onMouseMove = (e) => {
+  const onMouseMove = e => {
     if (!drag) return;
-    const { nx, ny } = getMouseNorm(e);
+    const {
+      nx,
+      ny
+    } = getMouseNorm(e);
     if (drag.mode === 'create') {
       const x0 = drag.start.nx;
       const y0 = drag.start.ny;
@@ -317,35 +351,58 @@ export default function PowerlineAnnotator() {
       const y = Math.min(y0, ny);
       const w = Math.abs(nx - x0);
       const h = Math.abs(ny - y0);
-      setPendingNew({ bbox_x: x, bbox_y: y, bbox_width: w, bbox_height: h });
+      setPendingNew({
+        bbox_x: x,
+        bbox_y: y,
+        bbox_width: w,
+        bbox_height: h
+      });
     } else if (drag.mode === 'move') {
       const dx = nx - drag.start.nx;
       const dy = ny - drag.start.ny;
       const o = drag.original;
       const newX = Math.max(0, Math.min(1 - o.bbox_width, o.bbox_x + dx));
       const newY = Math.max(0, Math.min(1 - o.bbox_height, o.bbox_y + dy));
-      setAnnotations(arr => arr.map(a =>
-        a.id === o.id ? { ...a, bbox_x: newX, bbox_y: newY } : a,
-      ));
+      setAnnotations(arr => arr.map(a => a.id === o.id ? {
+        ...a,
+        bbox_x: newX,
+        bbox_y: newY
+      } : a));
     } else if (drag.mode === 'resize') {
       const o = drag.original;
-      let x = o.bbox_x, y = o.bbox_y, w = o.bbox_width, h = o.bbox_height;
+      let x = o.bbox_x,
+        y = o.bbox_y,
+        w = o.bbox_width,
+        h = o.bbox_height;
       const right = o.bbox_x + o.bbox_width;
       const bottom = o.bbox_y + o.bbox_height;
-      if (drag.handle.includes('w')) { x = Math.min(nx, right - 0.005); w = right - x; }
-      if (drag.handle.includes('e')) { w = Math.max(0.005, nx - x); }
-      if (drag.handle.includes('n')) { y = Math.min(ny, bottom - 0.005); h = bottom - y; }
-      if (drag.handle.includes('s')) { h = Math.max(0.005, ny - y); }
+      if (drag.handle.includes('w')) {
+        x = Math.min(nx, right - 0.005);
+        w = right - x;
+      }
+      if (drag.handle.includes('e')) {
+        w = Math.max(0.005, nx - x);
+      }
+      if (drag.handle.includes('n')) {
+        y = Math.min(ny, bottom - 0.005);
+        h = bottom - y;
+      }
+      if (drag.handle.includes('s')) {
+        h = Math.max(0.005, ny - y);
+      }
       x = Math.max(0, Math.min(1, x));
       y = Math.max(0, Math.min(1, y));
       w = Math.min(w, 1 - x);
       h = Math.min(h, 1 - y);
-      setAnnotations(arr => arr.map(a =>
-        a.id === o.id ? { ...a, bbox_x: x, bbox_y: y, bbox_width: w, bbox_height: h } : a,
-      ));
+      setAnnotations(arr => arr.map(a => a.id === o.id ? {
+        ...a,
+        bbox_x: x,
+        bbox_y: y,
+        bbox_width: w,
+        bbox_height: h
+      } : a));
     }
   };
-
   const onMouseUp = async () => {
     if (!drag) return;
     const mode = drag.mode;
@@ -358,14 +415,11 @@ export default function PowerlineAnnotator() {
       // Persist new annotation
       setSaveStatus('saving');
       try {
-        const res = await api.post(
-          `/projects/${projectId}/powerline/images/${selectedImageId}/annotations`,
-          {
-            ...pendingNew,
-            severity: 'S3',
-            inspector_name: inspectorName || null,
-          },
-        );
+        const res = await api.post(`/projects/${projectId}/powerline/images/${selectedImageId}/annotations`, {
+          ...pendingNew,
+          severity: 'S3',
+          inspector_name: inspectorName || null
+        });
         setAnnotations(arr => [...arr, res.data]);
         setSelectedAnnId(res.data.id);
         setPendingNew(null);
@@ -385,8 +439,10 @@ export default function PowerlineAnnotator() {
       setSaveStatus('saving');
       try {
         await api.put(`/projects/${projectId}/powerline/annotations/${a.id}`, {
-          bbox_x: a.bbox_x, bbox_y: a.bbox_y,
-          bbox_width: a.bbox_width, bbox_height: a.bbox_height,
+          bbox_x: a.bbox_x,
+          bbox_y: a.bbox_y,
+          bbox_width: a.bbox_width,
+          bbox_height: a.bbox_height
         });
         setSaveStatus('saved');
         setTimeout(() => setSaveStatus(''), 1200);
@@ -396,25 +452,25 @@ export default function PowerlineAnnotator() {
       }
     }
   };
-
   const refreshImageCounts = useCallback(async () => {
     try {
       const r = await api.get(`/projects/${projectId}/powerline/images`);
       setImages(r.data.images || []);
-    } catch { /* tolerate */ }
+    } catch {/* tolerate */}
   }, [projectId]);
 
   // ── Image tag ──────────────────────────────────────────────
   const selectedImage = images.find(i => i.id === selectedImageId) || null;
-
-  const updateImageTag = useCallback(async (tag) => {
+  const updateImageTag = useCallback(async tag => {
     if (!selectedImageId) return;
     try {
-      const res = await api.patch(
-        `/projects/${projectId}/powerline/images/${selectedImageId}`,
-        { image_tag: tag || null },
-      );
-      setImages(arr => arr.map(i => i.id === selectedImageId ? { ...i, image_tag: res.data.image_tag } : i));
+      const res = await api.patch(`/projects/${projectId}/powerline/images/${selectedImageId}`, {
+        image_tag: tag || null
+      });
+      setImages(arr => arr.map(i => i.id === selectedImageId ? {
+        ...i,
+        image_tag: res.data.image_tag
+      } : i));
     } catch (e) {
       setError(e.response?.data?.detail || 'Failed to save image tag.');
     }
@@ -422,14 +478,16 @@ export default function PowerlineAnnotator() {
 
   // ── Selected annotation form u2500─────────────────────────────────
   const selectedAnn = annotations.find(a => a.id === selectedAnnId) || null;
-
   const updateSelectedField = async (field, value) => {
     if (!selectedAnn) return;
-    setAnnotations(arr => arr.map(a => a.id === selectedAnn.id ? { ...a, [field]: value } : a));
+    setAnnotations(arr => arr.map(a => a.id === selectedAnn.id ? {
+      ...a,
+      [field]: value
+    } : a));
     setSaveStatus('saving');
     try {
       await api.put(`/projects/${projectId}/powerline/annotations/${selectedAnn.id}`, {
-        [field]: value,
+        [field]: value
       });
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus(''), 1000);
@@ -438,7 +496,6 @@ export default function PowerlineAnnotator() {
       setSaveStatus('');
     }
   };
-
   const deleteSelected = async () => {
     if (!selectedAnn) return;
     setConfirm({
@@ -458,13 +515,13 @@ export default function PowerlineAnnotator() {
           setError(e.response?.data?.detail || 'Failed to delete annotation.');
         }
       },
-      onCancel: () => setConfirm(null),
+      onCancel: () => setConfirm(null)
     });
   };
 
   // Keyboard shortcuts
   useEffect(() => {
-    const onKey = (e) => {
+    const onKey = e => {
       const tag = e.target?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
       if (e.key === 'Escape') setSelectedAnnId(null);
@@ -477,14 +534,16 @@ export default function PowerlineAnnotator() {
   }, [selectedAnnId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Upload ───────────────────────────────────────────────────
-  const handleUploadFiles = async (fileList) => {
+  const handleUploadFiles = async fileList => {
     if (!fileList || !fileList.length) return;
     const fd = new FormData();
     Array.from(fileList).forEach(f => fd.append('files', f));
     setSaveStatus('saving');
     try {
       await api.post(`/projects/${projectId}/powerline/upload`, fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
       });
       const r = await api.get(`/projects/${projectId}/powerline/images`);
       setImages(r.data.images || []);
@@ -500,11 +559,7 @@ export default function PowerlineAnnotator() {
   };
 
   // ── Publish ──────────────────────────────────────────────────
-  const totalAnnotations = useMemo(
-    () => images.reduce((s, i) => s + (i.annotation_count || 0), 0) + 0,
-    [images],
-  );
-
+  const totalAnnotations = useMemo(() => images.reduce((s, i) => s + (i.annotation_count || 0), 0) + 0, [images]);
   const publishProject = () => {
     setConfirm({
       show: true,
@@ -521,11 +576,10 @@ export default function PowerlineAnnotator() {
           setError(e.response?.data?.detail || 'Failed to publish.');
         }
       },
-      onCancel: () => setConfirm(null),
+      onCancel: () => setConfirm(null)
     });
   };
-
-  const removeImage = (img) => {
+  const removeImage = img => {
     setConfirm({
       show: true,
       title: `Delete "${img.filename}"?`,
@@ -545,30 +599,21 @@ export default function PowerlineAnnotator() {
           setError(e.response?.data?.detail || 'Failed to delete image.');
         }
       },
-      onCancel: () => setConfirm(null),
+      onCancel: () => setConfirm(null)
     });
   };
-
   if (loading) {
-    return (
-      <div className="page-bg flex items-center justify-center min-h-screen">
+    return <SidebarLayout title="Powerline Annotator">
         <div className="spinner" />
-      </div>
-    );
+      </SidebarLayout>;
   }
-
   const status = project?.status || '';
-
-  return (
-    <div className="page-bg min-h-screen flex flex-col">
-      <Navbar />
+  return <SidebarLayout title="Powerline Annotator">
+      
 
       {/* Header bar */}
       <div className="relative z-10 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 mt-4 mb-3 flex items-center gap-3 flex-wrap">
-        <button
-          onClick={() => navigate(project?.client_id ? `/admin/clients/${project.client_id}/projects` : '/admin')}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/80 backdrop-blur-sm border border-slate-200 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-white"
-        >
+        <button onClick={() => navigate(project?.client_id ? `/admin/clients/${project.client_id}/projects` : '/admin')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/80 backdrop-blur-sm border border-slate-200 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-white">
           <ArrowLeft size={14} /> Back
         </button>
         <div className="flex-1 min-w-0">
@@ -579,37 +624,21 @@ export default function PowerlineAnnotator() {
             {project?.location || 'Power Transmission Line Inspection'} · {images.length} images · {annotations.length} annotations on this image
           </p>
         </div>
-        <span className={[
-          'px-2.5 py-1 rounded-full text-[11px] font-semibold',
-          status === 'READY' ? 'bg-emerald-100 text-emerald-700' :
-          status === 'REVIEW_PENDING' ? 'bg-amber-100 text-amber-700' :
-          'bg-slate-100 text-slate-600',
-        ].join(' ')}>
-          {status === 'READY' ? 'Published' : status === 'REVIEW_PENDING' ? 'Pending Review' : (status || 'Draft')}
+        <span className={['px-2.5 py-1 rounded-full text-[11px] font-semibold', status === 'READY' ? 'bg-emerald-100 text-emerald-700' : status === 'REVIEW_PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'].join(' ')}>
+          {status === 'READY' ? 'Published' : status === 'REVIEW_PENDING' ? 'Pending Review' : status || 'Draft'}
         </span>
-        {saveStatus === 'saving' && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
+        {saveStatus === 'saving' && <span className="inline-flex items-center gap-1.5 text-xs text-slate-500">
             <Loader2 size={12} className="animate-spin" /> Saving…
-          </span>
-        )}
-        {saveStatus === 'saved' && (
-          <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
+          </span>}
+        {saveStatus === 'saved' && <span className="inline-flex items-center gap-1.5 text-xs text-emerald-600">
             <CheckCircle2 size={12} /> Saved
-          </span>
-        )}
-        {isAdmin && (
-          <button
-            onClick={() => navigate(`/admin/projects/${projectId}/powerline/summary`)}
-            disabled={!images.length || !images.some(i => (i.annotation_count || 0) > 0)}
-            className="btn-primary gap-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+          </span>}
+        {isAdmin && <button onClick={() => navigate(`/admin/projects/${projectId}/powerline/summary`)} disabled={!images.length || !images.some(i => (i.annotation_count || 0) > 0)} className="btn-primary gap-2 text-xs disabled:opacity-50 disabled:cursor-not-allowed">
             <Send size={13} /> Continue to Summary →
-          </button>
-        )}
+          </button>}
       </div>
 
-      {error && (
-        <div className="relative z-10 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 mb-3">
+      {error && <div className="relative z-10 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 mb-3">
           <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-3">
             <ShieldAlert className="text-red-500 shrink-0 mt-0.5" size={16} />
             <p className="text-red-700 text-xs flex-1">{error}</p>
@@ -617,8 +646,7 @@ export default function PowerlineAnnotator() {
               <X size={14} />
             </button>
           </div>
-        </div>
-      )}
+        </div>}
 
       <main className="relative z-10 max-w-screen-2xl mx-auto w-full px-4 sm:px-6 pb-8 flex-1 grid grid-cols-12 gap-4 min-h-0">
         {/* Left: image list */}
@@ -626,47 +654,21 @@ export default function PowerlineAnnotator() {
           <GlassCard className="p-3 flex-1 flex flex-col min-h-[300px] max-h-[calc(100vh-180px)]">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-slate-600">Images ({images.length})</span>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:text-primary-700"
-              >
+              <button onClick={() => fileInputRef.current?.click()} className="inline-flex items-center gap-1 text-[11px] font-semibold text-primary-600 hover:text-primary-700">
                 <Plus size={12} /> Add
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".jpg,.jpeg,.png,.tif,.tiff"
-                className="hidden"
-                onChange={(e) => {
-                  handleUploadFiles(e.target.files);
-                  e.target.value = '';
-                }}
-              />
+              <input ref={fileInputRef} type="file" multiple accept=".jpg,.jpeg,.png,.tif,.tiff" className="hidden" onChange={e => {
+              handleUploadFiles(e.target.files);
+              e.target.value = '';
+            }} />
             </div>
             <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
-              {images.length === 0 ? (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full p-6 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-primary-400 hover:text-primary-600 transition flex flex-col items-center gap-2"
-                >
+              {images.length === 0 ? <button onClick={() => fileInputRef.current?.click()} className="w-full p-6 rounded-xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-primary-400 hover:text-primary-600 transition flex flex-col items-center gap-2">
                   <UploadCloud size={20} />
                   <span className="text-xs font-semibold">Upload images</span>
-                </button>
-              ) : (
-                images.map((im, idx) => {
-                  const active = im.id === selectedImageId;
-                  return (
-                    <div
-                      key={im.id}
-                      className={[
-                        'group flex items-center gap-2 p-2 rounded-xl cursor-pointer text-xs transition',
-                        active
-                          ? 'bg-primary-50 border border-primary-300 shadow-sm'
-                          : 'bg-white/80 hover:bg-slate-50 border border-transparent',
-                      ].join(' ')}
-                      onClick={() => setSelectedImageId(im.id)}
-                    >
+                </button> : images.map((im, idx) => {
+              const active = im.id === selectedImageId;
+              return <div key={im.id} className={['group flex items-center gap-2 p-2 rounded-xl cursor-pointer text-xs transition', active ? 'bg-primary-50 border border-primary-300 shadow-sm' : 'bg-white/80 hover:bg-slate-50 border border-transparent'].join(' ')} onClick={() => setSelectedImageId(im.id)}>
                       <div className="w-9 h-9 rounded-md bg-slate-100 flex items-center justify-center text-slate-400 shrink-0">
                         <ImageIcon size={14} />
                       </div>
@@ -677,16 +679,14 @@ export default function PowerlineAnnotator() {
                           {im.image_tag ? <span className="ml-1 px-1 py-0.5 bg-sky-100 text-sky-700 rounded text-[9px]">{im.image_tag}</span> : null}
                         </p>
                       </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); removeImage(im); }}
-                        className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition"
-                      >
+                      <button onClick={e => {
+                  e.stopPropagation();
+                  removeImage(im);
+                }} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition">
                         <Trash2 size={12} />
                       </button>
-                    </div>
-                  );
-                })
-              )}
+                    </div>;
+            })}
             </div>
           </GlassCard>
         </aside>
@@ -694,52 +694,23 @@ export default function PowerlineAnnotator() {
         {/* Center: canvas */}
         <section className="col-span-12 md:col-span-6 lg:col-span-7 flex flex-col min-h-0">
           {/* Image tag selector bar */}
-          {selectedImageId && (
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
+          {selectedImageId && <div className="flex items-center gap-2 mb-2 flex-wrap">
               <span className="text-[11px] font-semibold text-slate-500">Image Tag:</span>
-              {IMAGE_TAG_OPTIONS.map(tag => (
-                <button
-                  key={tag}
-                  onClick={() => updateImageTag(selectedImage?.image_tag === tag ? null : tag)}
-                  className={[
-                    'px-2 py-0.5 rounded-full text-[11px] font-medium border transition',
-                    selectedImage?.image_tag === tag
-                      ? 'bg-sky-600 text-white border-sky-600'
-                      : 'bg-white/80 text-slate-600 border-slate-300 hover:border-sky-400 hover:text-sky-700',
-                  ].join(' ')}
-                >
+              {IMAGE_TAG_OPTIONS.map(tag => <button key={tag} onClick={() => updateImageTag(selectedImage?.image_tag === tag ? null : tag)} className={['px-2 py-0.5 rounded-full text-[11px] font-medium border transition', selectedImage?.image_tag === tag ? 'bg-sky-600 text-white border-sky-600' : 'bg-white/80 text-slate-600 border-slate-300 hover:border-sky-400 hover:text-sky-700'].join(' ')}>
                   {tag}
-                </button>
-              ))}
+                </button>)}
               {/* custom tag inline */}
-              {selectedImage?.image_tag && !IMAGE_TAG_OPTIONS.includes(selectedImage.image_tag) && (
-                <button
-                  onClick={() => updateImageTag(null)}
-                  className="px-2 py-0.5 rounded-full text-[11px] font-medium border bg-sky-600 text-white border-sky-600"
-                >
+              {selectedImage?.image_tag && !IMAGE_TAG_OPTIONS.includes(selectedImage.image_tag) && <button onClick={() => updateImageTag(null)} className="px-2 py-0.5 rounded-full text-[11px] font-medium border bg-sky-600 text-white border-sky-600">
                   {selectedImage.image_tag} ×
-                </button>
-              )}
-            </div>
-          )}
+                </button>}
+            </div>}
           <GlassCard className="p-2 flex-1 flex items-center justify-center min-h-[400px] max-h-[calc(100vh-180px)] overflow-hidden">
-            {selectedImageId && imageObjectUrl ? (
-              <div ref={wrapperRef} className="w-full h-full flex items-center justify-center overflow-hidden">
-                <canvas
-                  ref={canvasRef}
-                  onMouseDown={onMouseDown}
-                  onMouseMove={onMouseMove}
-                  onMouseUp={onMouseUp}
-                  onMouseLeave={onMouseUp}
-                  className="cursor-crosshair shadow-md rounded-md select-none"
-                />
-              </div>
-            ) : (
-              <div className="text-center text-slate-400 py-12">
+            {selectedImageId && imageObjectUrl ? <div ref={wrapperRef} className="w-full h-full flex items-center justify-center overflow-hidden">
+                <canvas ref={canvasRef} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} onMouseLeave={onMouseUp} className="cursor-crosshair shadow-md rounded-md select-none" />
+              </div> : <div className="text-center text-slate-400 py-12">
                 <ImageIcon size={32} className="mx-auto mb-3 text-slate-300" />
                 <p className="text-sm">Select or upload an image to begin annotating.</p>
-              </div>
-            )}
+              </div>}
           </GlassCard>
           <p className="text-[11px] text-slate-400 text-center mt-2">
             Click & drag on empty space to draw a bounding box · Click a box to select · Drag handles to resize · <kbd className="px-1 py-0.5 bg-slate-200 rounded">Del</kbd> removes
@@ -752,176 +723,130 @@ export default function PowerlineAnnotator() {
             <h3 className="text-sm font-heading font-bold text-slate-800 mb-3">
               {selectedAnn ? 'Annotation Details' : 'Properties'}
             </h3>
-            {selectedAnn ? (
-              <div className="space-y-3 text-xs">
+            {selectedAnn ? <div className="space-y-3 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase tracking-wider mb-1 text-[10px]">Component Tag</label>
                   <div className="flex gap-1 flex-wrap mb-1">
-                    {allComponentTags.map(tag => (
-                      <button
-                        key={tag}
-                        onClick={() => updateSelectedField('component_tag', selectedAnn.component_tag === tag ? null : tag)}
-                        className={[
-                          'px-2 py-0.5 rounded-full text-[10px] font-medium border transition',
-                          selectedAnn.component_tag === tag
-                            ? 'bg-violet-600 text-white border-violet-600'
-                            : 'bg-white/80 text-slate-600 border-slate-300 hover:border-violet-400',
-                        ].join(' ')}
-                      >
+                    {allComponentTags.map(tag => <button key={tag} onClick={() => updateSelectedField('component_tag', selectedAnn.component_tag === tag ? null : tag)} className={['px-2 py-0.5 rounded-full text-[10px] font-medium border transition', selectedAnn.component_tag === tag ? 'bg-violet-600 text-white border-violet-600' : 'bg-white/80 text-slate-600 border-slate-300 hover:border-violet-400'].join(' ')}>
                         {tag}
-                      </button>
-                    ))}
+                      </button>)}
                   </div>
-                  {showCustomTagInput ? (
-                    <div className="flex gap-1">
-                      <input
-                        className="glass-input text-xs flex-1"
-                        value={customTagInput}
-                        onChange={e => setCustomTagInput(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') addCustomComponentTag(); if (e.key === 'Escape') { setShowCustomTagInput(false); setCustomTagInput(''); } }}
-                        placeholder="Custom tag…"
-                        autoFocus
-                      />
+                  {showCustomTagInput ? <div className="flex gap-1">
+                      <input className="glass-input text-xs flex-1" value={customTagInput} onChange={e => setCustomTagInput(e.target.value)} onKeyDown={e => {
+                  if (e.key === 'Enter') addCustomComponentTag();
+                  if (e.key === 'Escape') {
+                    setShowCustomTagInput(false);
+                    setCustomTagInput('');
+                  }
+                }} placeholder="Custom tag…" autoFocus />
                       <button onClick={addCustomComponentTag} className="px-2 py-1 rounded-lg bg-violet-600 text-white text-[10px] font-semibold">Add</button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowCustomTagInput(true)}
-                      className="inline-flex items-center gap-1 text-[10px] text-violet-600 hover:text-violet-800 font-semibold mt-0.5"
-                    >
+                    </div> : <button onClick={() => setShowCustomTagInput(true)} className="inline-flex items-center gap-1 text-[10px] text-violet-600 hover:text-violet-800 font-semibold mt-0.5">
                       <Plus size={10} /> Custom tag
-                    </button>
-                  )}
+                    </button>}
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase tracking-wider mb-1 text-[10px]">Severity</label>
-                  <select
-                    className="glass-input text-xs"
-                    value={selectedAnn.severity}
-                    onChange={(e) => updateSelectedField('severity', e.target.value)}
-                  >
-                    {SEVERITY_OPTIONS.map(o => (
-                      <option key={o.value} value={o.value}>{o.label}</option>
-                    ))}
+                  <select className="glass-input text-xs" value={selectedAnn.severity} onChange={e => updateSelectedField('severity', e.target.value)}>
+                    {SEVERITY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase tracking-wider mb-1 text-[10px]">Issue Type</label>
-                  <input
-                    className="glass-input text-xs"
-                    list="issue-type-suggestions"
-                    value={selectedAnn.issue_type || ''}
-                    onChange={(e) => updateSelectedField('issue_type', e.target.value)}
-                    placeholder="e.g. Conductor Damage"
-                  />
+                  <input className="glass-input text-xs" list="issue-type-suggestions" value={selectedAnn.issue_type || ''} onChange={e => updateSelectedField('issue_type', e.target.value)} placeholder="e.g. Conductor Damage" />
                   <datalist id="issue-type-suggestions">
                     {ISSUE_TYPE_SUGGESTIONS.map(s => <option key={s} value={s} />)}
                   </datalist>
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase tracking-wider mb-1 text-[10px]">Remedy Action</label>
-                  <textarea
-                    className="glass-input text-xs min-h-[60px]"
-                    value={selectedAnn.remedy_action || ''}
-                    onChange={(e) => updateSelectedField('remedy_action', e.target.value)}
-                    placeholder="Recommended corrective action…"
-                  />
+                  <textarea className="glass-input text-xs min-h-[60px]" value={selectedAnn.remedy_action || ''} onChange={e => updateSelectedField('remedy_action', e.target.value)} placeholder="Recommended corrective action…" />
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase tracking-wider mb-1 text-[10px]">Comment</label>
-                  <textarea
-                    className="glass-input text-xs min-h-[60px]"
-                    value={selectedAnn.comment || ''}
-                    onChange={(e) => updateSelectedField('comment', e.target.value)}
-                    placeholder="Inspector notes…"
-                  />
+                  <textarea className="glass-input text-xs min-h-[60px]" value={selectedAnn.comment || ''} onChange={e => updateSelectedField('comment', e.target.value)} placeholder="Inspector notes…" />
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase tracking-wider mb-1 text-[10px]">Inspector Name</label>
-                  <input
-                    className="glass-input text-xs"
-                    value={selectedAnn.inspector_name || ''}
-                    onChange={(e) => {
-                      localStorage.setItem('powerline_inspector_name', e.target.value);
-                      setInspectorName(e.target.value);
-                      updateSelectedField('inspector_name', e.target.value);
-                    }}
-                    placeholder="Your name"
-                  />
+                  <input className="glass-input text-xs" value={selectedAnn.inspector_name || ''} onChange={e => {
+                localStorage.setItem('powerline_inspector_name', e.target.value);
+                setInspectorName(e.target.value);
+                updateSelectedField('inspector_name', e.target.value);
+              }} placeholder="Your name" />
                 </div>
                 <div className="pt-3 border-t border-slate-100 flex gap-2">
-                  <button
-                    onClick={deleteSelected}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100"
-                  >
+                  <button onClick={deleteSelected} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-red-50 text-red-600 text-xs font-semibold hover:bg-red-100">
                     <Trash2 size={12} /> Delete
                   </button>
-                  <button
-                    onClick={() => setSelectedAnnId(null)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold hover:bg-slate-200"
-                  >
+                  <button onClick={() => setSelectedAnnId(null)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-slate-100 text-slate-600 text-xs font-semibold hover:bg-slate-200">
                     Deselect
                   </button>
                 </div>
-              </div>
-            ) : (
-              <div className="space-y-3 text-xs text-slate-500">
+              </div> : <div className="space-y-3 text-xs text-slate-500">
                 <p>Click and drag on the image to draw a new bounding box, or click an existing box to view and edit its details.</p>
                 <div>
                   <label className="block font-semibold text-slate-500 uppercase tracking-wider mb-1 text-[10px]">Default Inspector Name</label>
-                  <input
-                    className="glass-input text-xs"
-                    value={inspectorName}
-                    onChange={(e) => {
-                      setInspectorName(e.target.value);
-                      localStorage.setItem('powerline_inspector_name', e.target.value);
-                    }}
-                    placeholder="Used for new annotations"
-                  />
+                  <input className="glass-input text-xs" value={inspectorName} onChange={e => {
+                setInspectorName(e.target.value);
+                localStorage.setItem('powerline_inspector_name', e.target.value);
+              }} placeholder="Used for new annotations" />
                 </div>
-                {annotations.length > 0 && (
-                  <div className="pt-3 border-t border-slate-100">
+                {annotations.length > 0 && <div className="pt-3 border-t border-slate-100">
                     <p className="font-semibold text-slate-600 text-[11px] mb-2">Annotations on this image:</p>
                     <ul className="space-y-1">
-                      {annotations.map((a, i) => (
-                        <li key={a.id}>
-                          <button
-                            onClick={() => setSelectedAnnId(a.id)}
-                            className="w-full text-left px-2 py-1.5 rounded-md hover:bg-slate-100 flex items-center gap-2"
-                          >
-                            <span
-                              className="inline-block w-2 h-2 rounded-full shrink-0"
-                              style={{ background: SEV_COLOR[a.severity] || '#dc2626' }}
-                            />
+                      {annotations.map((a, i) => <li key={a.id}>
+                          <button onClick={() => setSelectedAnnId(a.id)} className="w-full text-left px-2 py-1.5 rounded-md hover:bg-slate-100 flex items-center gap-2">
+                            <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{
+                      background: SEV_COLOR[a.severity] || '#dc2626'
+                    }} />
                             <span className="text-slate-600 truncate">
                               #{i + 1} · {SEV_LABEL[a.severity] || a.severity} · {a.issue_type || '—'}
                             </span>
                           </button>
-                        </li>
-                      ))}
+                        </li>)}
                     </ul>
-                  </div>
-                )}
-              </div>
-            )}
+                  </div>}
+              </div>}
           </GlassCard>
         </aside>
       </main>
 
-      <ConfirmModal {...(confirm || { show: false })} />
-    </div>
-  );
+      <ConfirmModal {...confirm || {
+      show: false
+    }} />
+    </SidebarLayout>;
 }
-
 function getHandles(x, y, w, h) {
-  return [
-    { name: 'nw', cx: x, cy: y },
-    { name: 'n',  cx: x + w / 2, cy: y },
-    { name: 'ne', cx: x + w, cy: y },
-    { name: 'e',  cx: x + w, cy: y + h / 2 },
-    { name: 'se', cx: x + w, cy: y + h },
-    { name: 's',  cx: x + w / 2, cy: y + h },
-    { name: 'sw', cx: x, cy: y + h },
-    { name: 'w',  cx: x, cy: y + h / 2 },
-  ];
+  return [{
+    name: 'nw',
+    cx: x,
+    cy: y
+  }, {
+    name: 'n',
+    cx: x + w / 2,
+    cy: y
+  }, {
+    name: 'ne',
+    cx: x + w,
+    cy: y
+  }, {
+    name: 'e',
+    cx: x + w,
+    cy: y + h / 2
+  }, {
+    name: 'se',
+    cx: x + w,
+    cy: y + h
+  }, {
+    name: 's',
+    cx: x + w / 2,
+    cy: y + h
+  }, {
+    name: 'sw',
+    cx: x,
+    cy: y + h
+  }, {
+    name: 'w',
+    cx: x,
+    cy: y + h / 2
+  }];
 }

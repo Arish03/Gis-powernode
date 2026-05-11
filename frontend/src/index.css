@@ -231,6 +231,70 @@
     @apply w-9 h-9 rounded-full flex items-center justify-center
            text-sm font-bold border-2 transition-all duration-200 relative z-10;
   }
+  /* Sidebar & Dashboard */
+  .sidebar-glass {
+    @apply bg-white/70 backdrop-blur-md border-r border-white/60 relative overflow-hidden;
+  }
+  .sidebar-glass::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 1px;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, rgba(16,185,129,0.3), transparent);
+  }
+  .sidebar-item {
+    @apply flex items-center gap-2.5 px-3 py-2 rounded-xl cursor-pointer text-slate-600 text-sm font-medium transition-all duration-150 w-full text-left relative bg-transparent border-none;
+  }
+  .sidebar-item:hover {
+    @apply bg-white/50 text-slate-800;
+  }
+  .sidebar-item.active {
+    @apply bg-primary-50/70 text-primary-700;
+  }
+  .sidebar-item.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 18px;
+    background: #10b981;
+    border-radius: 0 3px 3px 0;
+  }
+  .kpi-card {
+    @apply glass-card p-5 relative overflow-hidden;
+  }
+  .kpi-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: var(--kg, rgba(16,185,129,0.1));
+    transform: translate(25px, -25px);
+  }
+  .pj-card-base {
+    @apply glass-card-hover p-5 relative overflow-hidden cursor-pointer;
+  }
+  .pj-card-base::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+  }
+  .pj-card-plant::before {
+    background: linear-gradient(90deg, #10b981, #06b6d4);
+  }
+  .pj-card-power::before {
+    background: linear-gradient(90deg, #f59e0b, #ef4444);
+  }
 }
 
 /* ── Background Color Blobs ─────────────────────────────────── */

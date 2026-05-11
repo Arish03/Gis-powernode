@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, Check, GripVertical, AlertTriangle, Trees, Loader2 } from 'lucide-react';
 import api from '../../api/client';
-import Navbar from '../../components/Navbar';
+import SidebarLayout from '../../components/SidebarLayout';
 import GlassCard from '../../components/ui/GlassCard';
 
 /**
@@ -14,43 +14,28 @@ export default function GroupProjectWizard() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const initialClientId = params.get('clientId') || '';
-
   const [step, setStep] = useState(1);
   const [clients, setClients] = useState([]);
   const [clientId, setClientId] = useState(initialClientId);
   const [name, setName] = useState('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
-
   const [projects, setProjects] = useState([]);
   const [selected, setSelected] = useState([]); // ordered list of project ids
   const [flightDates, setFlightDates] = useState({}); // {projectId: 'YYYY-MM-DD'}
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
-
   useEffect(() => {
     api.get('/users/clients').then(r => setClients(r.data)).catch(() => {});
   }, []);
-
   useEffect(() => {
     if (!clientId || step !== 2) return;
     setLoadingProjects(true);
-    api.get(`/projects?client_id=${clientId}&status=READY`)
-      .then(r => setProjects(r.data.projects || []))
-      .catch(() => setProjects([]))
-      .finally(() => setLoadingProjects(false));
+    api.get(`/projects?client_id=${clientId}&status=READY`).then(r => setProjects(r.data.projects || [])).catch(() => setProjects([])).finally(() => setLoadingProjects(false));
   }, [clientId, step]);
-
-  const availableProjects = useMemo(
-    () => projects.filter(p => !selected.includes(p.id)),
-    [projects, selected]
-  );
-  const selectedProjects = useMemo(
-    () => selected.map(id => projects.find(p => p.id === id)).filter(Boolean),
-    [selected, projects]
-  );
-
+  const availableProjects = useMemo(() => projects.filter(p => !selected.includes(p.id)), [projects, selected]);
+  const selectedProjects = useMemo(() => selected.map(id => projects.find(p => p.id === id)).filter(Boolean), [selected, projects]);
   const moveItem = (fromIdx, toIdx) => {
     if (toIdx < 0 || toIdx >= selected.length) return;
     const next = [...selected];
@@ -58,9 +43,7 @@ export default function GroupProjectWizard() {
     next.splice(toIdx, 0, item);
     setSelected(next);
   };
-
   const canSubmit = clientId && name.trim() && selected.length >= 2;
-
   const handleSubmit = async () => {
     setSubmitting(true);
     setError('');
@@ -70,13 +53,13 @@ export default function GroupProjectWizard() {
         name: name.trim(),
         location: location.trim() || null,
         description: description.trim() || null,
-        project_ids: selected,
+        project_ids: selected
       };
-      const fd = selected
-        .map(pid => flightDates[pid] ? { project_id: pid, flight_date: flightDates[pid] } : null)
-        .filter(Boolean);
+      const fd = selected.map(pid => flightDates[pid] ? {
+        project_id: pid,
+        flight_date: flightDates[pid]
+      } : null).filter(Boolean);
       if (fd.length) payload.flight_dates = fd;
-
       const res = await api.post('/groups', payload);
       navigate(`/admin/groups/${res.data.id}/view`);
     } catch (err) {
@@ -85,10 +68,8 @@ export default function GroupProjectWizard() {
       setSubmitting(false);
     }
   };
-
-  return (
-    <div className="page-bg min-h-screen">
-      <Navbar />
+  return <SidebarLayout title="Group Project Wizard">
+      
       <main className="relative z-10 max-w-5xl mx-auto px-4 py-8 space-y-6">
         <div className="flex items-center gap-3">
           <button onClick={() => navigate(-1)} className="p-2 rounded-lg hover:bg-white/60">
@@ -113,89 +94,52 @@ export default function GroupProjectWizard() {
           </div>
         </div>
 
-        {step === 1 && (
-          <GlassCard className="p-6 space-y-4">
+        {step === 1 && <GlassCard className="p-6 space-y-4">
             <div>
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Client</label>
-              <select
-                value={clientId}
-                onChange={e => setClientId(e.target.value)}
-                disabled={!!initialClientId}
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white disabled:bg-slate-50"
-              >
+              <select value={clientId} onChange={e => setClientId(e.target.value)} disabled={!!initialClientId} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white disabled:bg-slate-50">
                 <option value="">Select client…</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.full_name || c.username}</option>)}
               </select>
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Group Name *</label>
-              <input
-                value={name}
-                onChange={e => setName(e.target.value)}
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white"
-                placeholder="e.g. Block 14 — 2023→2025 Timeline"
-              />
+              <input value={name} onChange={e => setName(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white" placeholder="e.g. Block 14 — 2023→2025 Timeline" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Location</label>
-              <input
-                value={location}
-                onChange={e => setLocation(e.target.value)}
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white"
-              />
+              <input value={location} onChange={e => setLocation(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white" />
             </div>
             <div>
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Description</label>
-              <textarea
-                value={description}
-                onChange={e => setDescription(e.target.value)}
-                rows={3}
-                className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white"
-              />
+              <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-xl bg-white" />
             </div>
             <div className="flex justify-end">
-              <button
-                disabled={!clientId || !name.trim()}
-                onClick={() => setStep(2)}
-                className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
-              >
+              <button disabled={!clientId || !name.trim()} onClick={() => setStep(2)} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
                 Next <ArrowRight size={16} />
               </button>
             </div>
-          </GlassCard>
-        )}
+          </GlassCard>}
 
-        {step === 2 && (
-          <GlassCard className="p-6 space-y-5">
+        {step === 2 && <GlassCard className="p-6 space-y-5">
             <p className="text-sm text-slate-500">
               Pick at least 2 READY projects and order them from <b>oldest</b> (T0) to newest.
               Boundaries must chain-intersect.
             </p>
 
-            {loadingProjects ? (
-              <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 className="animate-spin" size={16} /> Loading projects…</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            {loadingProjects ? <div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 className="animate-spin" size={16} /> Loading projects…</div> : <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {/* Available */}
                 <div>
                   <h3 className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2">Available ({availableProjects.length})</h3>
                   <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                    {availableProjects.map(p => (
-                      <button
-                        key={p.id}
-                        onClick={() => setSelected(prev => [...prev, p.id])}
-                        className="w-full text-left p-3 rounded-xl bg-white border border-slate-200 hover:border-primary-300 hover:bg-primary-50/30 transition"
-                      >
+                    {availableProjects.map(p => <button key={p.id} onClick={() => setSelected(prev => [...prev, p.id])} className="w-full text-left p-3 rounded-xl bg-white border border-slate-200 hover:border-primary-300 hover:bg-primary-50/30 transition">
                         <div className="flex items-center gap-2">
                           <Trees size={14} className="text-primary-500" />
                           <span className="font-medium text-slate-800 text-sm">{p.name}</span>
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">{p.location || '—'}</p>
-                      </button>
-                    ))}
-                    {availableProjects.length === 0 && (
-                      <p className="text-xs text-slate-400 italic">No more READY projects available.</p>
-                    )}
+                      </button>)}
+                    {availableProjects.length === 0 && <p className="text-xs text-slate-400 italic">No more READY projects available.</p>}
                   </div>
                 </div>
 
@@ -205,61 +149,43 @@ export default function GroupProjectWizard() {
                     Timeline ({selected.length}) — top is T0
                   </h3>
                   <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
-                    {selectedProjects.map((p, idx) => (
-                      <div key={p.id} className="p-3 rounded-xl bg-white border border-primary-200 shadow-sm">
+                    {selectedProjects.map((p, idx) => <div key={p.id} className="p-3 rounded-xl bg-white border border-primary-200 shadow-sm">
                         <div className="flex items-center gap-2">
                           <GripVertical size={14} className="text-slate-400" />
                           <span className="text-xs font-mono text-primary-600 font-bold">T{idx}</span>
                           <span className="font-medium text-slate-800 text-sm flex-1 truncate">{p.name}</span>
-                          <button onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0}
-                                  className="text-xs text-slate-500 hover:text-slate-800 disabled:opacity-30">↑</button>
-                          <button onClick={() => moveItem(idx, idx + 1)} disabled={idx === selected.length - 1}
-                                  className="text-xs text-slate-500 hover:text-slate-800 disabled:opacity-30">↓</button>
-                          <button onClick={() => setSelected(prev => prev.filter(id => id !== p.id))}
-                                  className="text-xs text-red-500 hover:text-red-700 ml-1">×</button>
+                          <button onClick={() => moveItem(idx, idx - 1)} disabled={idx === 0} className="text-xs text-slate-500 hover:text-slate-800 disabled:opacity-30">↑</button>
+                          <button onClick={() => moveItem(idx, idx + 1)} disabled={idx === selected.length - 1} className="text-xs text-slate-500 hover:text-slate-800 disabled:opacity-30">↓</button>
+                          <button onClick={() => setSelected(prev => prev.filter(id => id !== p.id))} className="text-xs text-red-500 hover:text-red-700 ml-1">×</button>
                         </div>
                         <div className="mt-2 flex items-center gap-2">
                           <label className="text-[10px] text-slate-500 uppercase">Flight date</label>
-                          <input
-                            type="date"
-                            value={flightDates[p.id] || ''}
-                            onChange={e => setFlightDates({ ...flightDates, [p.id]: e.target.value })}
-                            className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white"
-                          />
+                          <input type="date" value={flightDates[p.id] || ''} onChange={e => setFlightDates({
+                    ...flightDates,
+                    [p.id]: e.target.value
+                  })} className="text-xs border border-slate-200 rounded px-2 py-0.5 bg-white" />
                         </div>
-                      </div>
-                    ))}
-                    {selected.length === 0 && (
-                      <p className="text-xs text-slate-400 italic">Add projects from the left to build the timeline.</p>
-                    )}
+                      </div>)}
+                    {selected.length === 0 && <p className="text-xs text-slate-400 italic">Add projects from the left to build the timeline.</p>}
                   </div>
                 </div>
-              </div>
-            )}
+              </div>}
 
-            {error && (
-              <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+            {error && <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
                 <AlertTriangle size={16} className="mt-0.5" />
                 <span>{error}</span>
-              </div>
-            )}
+              </div>}
 
             <div className="flex justify-between pt-2">
               <button onClick={() => setStep(1)} className="btn-secondary inline-flex items-center gap-2">
                 <ArrowLeft size={16} /> Back
               </button>
-              <button
-                disabled={!canSubmit || submitting}
-                onClick={handleSubmit}
-                className="btn-primary inline-flex items-center gap-2 disabled:opacity-50"
-              >
+              <button disabled={!canSubmit || submitting} onClick={handleSubmit} className="btn-primary inline-flex items-center gap-2 disabled:opacity-50">
                 {submitting ? <Loader2 className="animate-spin" size={16} /> : <Check size={16} />}
                 Create Group
               </button>
             </div>
-          </GlassCard>
-        )}
+          </GlassCard>}
       </main>
-    </div>
-  );
+    </SidebarLayout>;
 }

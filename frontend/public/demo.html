@@ -1,0 +1,2069 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lansub — GIS PowerNode</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&family=DM+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      :root {
+        --green: #1db954;
+        --green-dim: #14a045;
+        --green-glow: rgba(29, 185, 84, 0.16);
+        --teal: #0dcfb4;
+        --amber: #f0a500;
+        --red: #e84040;
+        --blue: #3b82f6;
+        --bg: #0a0d0f;
+        --bg2: #111518;
+        --bg3: #181d21;
+        --bg4: #1e252b;
+        --border: rgba(255, 255, 255, 0.07);
+        --border2: rgba(255, 255, 255, 0.13);
+        --text: #e8eaed;
+        --text2: #8f9aaa;
+        --text3: #54616e;
+        --sidebar: 224px;
+        --radius: 12px;
+        --radius-sm: 8px;
+        font-family: "DM Sans", sans-serif;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        min-height: 100vh;
+        overflow: hidden;
+      }
+
+      /* LOGIN */
+      #login-screen {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--bg);
+        z-index: 100;
+        transition: opacity 0.3s;
+      }
+      .login-bg {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background:
+          radial-gradient(
+            ellipse 80% 80% at 50% -10%,
+            rgba(29, 185, 84, 0.13),
+            transparent
+          ),
+          radial-gradient(
+            ellipse 50% 50% at 85% 85%,
+            rgba(13, 207, 180, 0.08),
+            transparent
+          );
+      }
+      .login-grid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(var(--border) 1px, transparent 1px),
+          linear-gradient(90deg, var(--border) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: radial-gradient(
+          ellipse 70% 70% at 50% 50%,
+          black 20%,
+          transparent 100%
+        );
+      }
+      .login-card {
+        position: relative;
+        z-index: 2;
+        width: 480px;
+        background: rgba(17, 21, 24, 0.93);
+        border: 1px solid var(--border2);
+        border-radius: 20px;
+        padding: 36px 40px;
+        box-shadow:
+          0 0 0 1px rgba(29, 185, 84, 0.08),
+          0 40px 80px rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(24px);
+      }
+      .login-logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 28px;
+      }
+      .login-logo-icon {
+        width: 42px;
+        height: 42px;
+        border-radius: 11px;
+        background: linear-gradient(135deg, var(--green), var(--teal));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+      .login-logo-text {
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+      }
+      .login-logo-text span {
+        color: var(--green);
+      }
+      .login-sub {
+        font-size: 12px;
+        color: var(--text2);
+        margin-top: 2px;
+      }
+      .portal-cards {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 22px;
+      }
+      .pcard {
+        padding: 16px 12px;
+        border: 1.5px solid var(--border);
+        border-radius: 13px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: rgba(17, 21, 24, 0.6);
+        text-align: center;
+      }
+      .pcard:hover {
+        border-color: var(--border2);
+        background: rgba(24, 29, 33, 0.8);
+      }
+      .pcard.sel.p-admin {
+        border-color: var(--green);
+        background: rgba(29, 185, 84, 0.07);
+        box-shadow: 0 0 0 1px rgba(29, 185, 84, 0.12);
+      }
+      .pcard.sel.p-subadmin {
+        border-color: var(--blue);
+        background: rgba(59, 130, 246, 0.07);
+        box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.12);
+      }
+      .pcard.sel.p-client {
+        border-color: var(--amber);
+        background: rgba(240, 165, 0, 0.07);
+        box-shadow: 0 0 0 1px rgba(240, 165, 0, 0.12);
+      }
+      .pcard-icon {
+        font-size: 24px;
+        margin-bottom: 7px;
+      }
+      .pcard-name {
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 3px;
+      }
+      .pcard-desc {
+        font-size: 10px;
+        color: var(--text3);
+        line-height: 1.4;
+      }
+      .p-admin .pcard-name {
+        color: var(--green);
+      }
+      .p-subadmin .pcard-name {
+        color: var(--blue);
+      }
+      .p-client .pcard-name {
+        color: var(--amber);
+      }
+      .portal-ind {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 9px 13px;
+        border-radius: var(--radius-sm);
+        margin-bottom: 20px;
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .portal-ind.p-admin {
+        background: rgba(29, 185, 84, 0.09);
+        color: var(--green);
+        border: 1px solid rgba(29, 185, 84, 0.2);
+      }
+      .portal-ind.p-subadmin {
+        background: rgba(59, 130, 246, 0.09);
+        color: var(--blue);
+        border: 1px solid rgba(59, 130, 246, 0.2);
+      }
+      .portal-ind.p-client {
+        background: rgba(240, 165, 0, 0.09);
+        color: var(--amber);
+        border: 1px solid rgba(240, 165, 0, 0.2);
+      }
+      .field {
+        margin-bottom: 15px;
+      }
+      .field-label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text2);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+      }
+      .field-input {
+        width: 100%;
+        padding: 11px 14px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .field-input:focus {
+        border-color: rgba(29, 185, 84, 0.5);
+        box-shadow: 0 0 0 3px var(--green-glow);
+      }
+      .field-input::placeholder {
+        color: var(--text3);
+      }
+      .login-btn {
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: var(--radius-sm);
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        letter-spacing: 0.2px;
+        margin-top: 2px;
+      }
+      .login-btn:hover {
+        transform: translateY(-1px);
+      }
+      .login-btn:active {
+        transform: translateY(0);
+      }
+      .lb-green {
+        background: var(--green);
+        color: #000;
+      }
+      .lb-green:hover {
+        background: var(--green-dim);
+        box-shadow: 0 8px 20px rgba(29, 185, 84, 0.3);
+      }
+      .lb-blue {
+        background: var(--blue);
+        color: #fff;
+      }
+      .lb-blue:hover {
+        background: #2563eb;
+        box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
+      }
+      .lb-amber {
+        background: var(--amber);
+        color: #000;
+      }
+      .lb-amber:hover {
+        box-shadow: 0 8px 20px rgba(240, 165, 0, 0.3);
+      }
+      .login-hint {
+        text-align: center;
+        font-size: 11px;
+        color: var(--text3);
+        margin-top: 16px;
+      }
+      .login-hint a {
+        color: var(--green);
+        cursor: pointer;
+      }
+
+      /* APP */
+      #app {
+        display: none;
+        height: 100vh;
+        overflow: hidden;
+      }
+      .shell {
+        display: flex;
+        height: 100vh;
+      }
+
+      /* SIDEBAR */
+      .sidebar {
+        width: var(--sidebar);
+        flex-shrink: 0;
+        height: 100vh;
+        background: var(--bg2);
+        border-right: 1px solid var(--border);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        position: relative;
+      }
+      .sidebar::after {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 1px;
+        height: 100%;
+        background: linear-gradient(
+          to bottom,
+          transparent,
+          var(--green-glow),
+          transparent
+        );
+      }
+      .sb-logo {
+        padding: 20px 18px 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+      .sb-logo-icon {
+        width: 32px;
+        height: 32px;
+        border-radius: 9px;
+        background: linear-gradient(135deg, var(--green), var(--teal));
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+        flex-shrink: 0;
+      }
+      .sb-logo-text {
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.2px;
+      }
+      .sb-logo-text small {
+        display: block;
+        font-size: 10px;
+        color: var(--text3);
+        font-weight: 400;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+      .sb-section {
+        padding: 0 10px;
+        margin-bottom: 3px;
+      }
+      .sb-lbl {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text3);
+        letter-spacing: 0.7px;
+        text-transform: uppercase;
+        padding: 10px 8px 5px;
+      }
+      .sb-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border-radius: var(--radius-sm);
+        cursor: pointer;
+        color: var(--text2);
+        font-size: 13px;
+        font-weight: 500;
+        transition: all 0.15s;
+        position: relative;
+        border: none;
+        background: transparent;
+        width: 100%;
+        font-family: inherit;
+        text-align: left;
+      }
+      .sb-item:hover {
+        background: var(--bg3);
+        color: var(--text);
+      }
+      .sb-item.active {
+        background: rgba(29, 185, 84, 0.11);
+        color: var(--green);
+      }
+      .sb-item.active::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 3px;
+        height: 18px;
+        background: var(--green);
+        border-radius: 0 3px 3px 0;
+      }
+      .sb-icon {
+        width: 18px;
+        height: 18px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 14px;
+      }
+      .sb-badge {
+        margin-left: auto;
+        font-size: 10px;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 99px;
+      }
+      .bg-green {
+        background: var(--green);
+        color: #000;
+      }
+      .bg-amber {
+        background: var(--amber);
+        color: #000;
+      }
+      .sb-div {
+        height: 1px;
+        background: var(--border);
+        margin: 6px 10px;
+      }
+      .sb-user {
+        margin-top: auto;
+        padding: 12px 10px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+      }
+      .sb-av {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        flex-shrink: 0;
+      }
+      .sb-uinfo {
+        flex: 1;
+        min-width: 0;
+      }
+      .sb-uname {
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .sb-urole {
+        font-size: 10px;
+        color: var(--text3);
+      }
+      .sb-out {
+        font-size: 14px;
+        color: var(--text3);
+        transition: color 0.15s;
+      }
+      .sb-out:hover {
+        color: var(--red);
+      }
+
+      /* MAIN */
+      .main {
+        flex: 1;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        background: var(--bg);
+      }
+      .topbar {
+        padding: 14px 26px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        flex-shrink: 0;
+      }
+      .topbar-title {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+        flex: 1;
+      }
+      .topbar-title small {
+        display: block;
+        font-size: 12px;
+        color: var(--text2);
+        font-weight: 400;
+        margin-top: 1px;
+      }
+      .btn {
+        padding: 8px 16px;
+        border-radius: var(--radius-sm);
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.18s;
+        border: none;
+      }
+      .btn-green {
+        background: var(--green);
+        color: #000;
+      }
+      .btn-green:hover {
+        background: var(--green-dim);
+        box-shadow: 0 4px 14px rgba(29, 185, 84, 0.25);
+      }
+      .btn-amber {
+        background: var(--amber);
+        color: #000;
+      }
+      .btn-amber:hover {
+        box-shadow: 0 4px 14px rgba(240, 165, 0, 0.25);
+      }
+      .btn-ghost {
+        background: transparent;
+        color: var(--text2);
+        border: 1px solid var(--border);
+      }
+      .btn-ghost:hover {
+        background: var(--bg3);
+        color: var(--text);
+      }
+      .content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 22px 26px;
+      }
+      .content::-webkit-scrollbar {
+        width: 4px;
+      }
+      .content::-webkit-scrollbar-thumb {
+        background: var(--border2);
+        border-radius: 99px;
+      }
+
+      /* KPI */
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+      .kpi {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 18px;
+        position: relative;
+        overflow: hidden;
+      }
+      .kpi::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 70px;
+        height: 70px;
+        border-radius: 50%;
+        background: var(--kg, var(--green-glow));
+        transform: translate(25px, -25px);
+      }
+      .kpi-lbl {
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text2);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+      .kpi-val {
+        font-size: 26px;
+        font-weight: 600;
+        letter-spacing: -1px;
+        line-height: 1;
+      }
+      .kpi-sub {
+        font-size: 11px;
+        color: var(--text2);
+        margin-top: 5px;
+      }
+      .kpi-trend {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        font-size: 10px;
+        font-weight: 600;
+        padding: 2px 7px;
+        border-radius: 99px;
+        margin-top: 7px;
+        background: rgba(29, 185, 84, 0.12);
+        color: var(--green);
+      }
+
+      /* CARDS */
+      .proj-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 13px;
+        margin-bottom: 22px;
+      }
+      .pj-card {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 16px 18px;
+        cursor: pointer;
+        transition: all 0.2s;
+        position: relative;
+        overflow: hidden;
+      }
+      .pj-card:hover {
+        border-color: var(--border2);
+        transform: translateY(-1px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+      }
+      .pj-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+      }
+      .pj-card.plant::before {
+        background: linear-gradient(90deg, var(--green), var(--teal));
+      }
+      .pj-card.power::before {
+        background: linear-gradient(90deg, var(--amber), var(--red));
+      }
+      .pj-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        padding: 3px 8px;
+        border-radius: 99px;
+        margin-bottom: 9px;
+      }
+      .b-plant {
+        background: rgba(29, 185, 84, 0.13);
+        color: var(--green);
+      }
+      .b-power {
+        background: rgba(240, 165, 0, 0.13);
+        color: var(--amber);
+      }
+      .pj-name {
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 5px;
+        letter-spacing: -0.2px;
+      }
+      .pj-meta {
+        font-size: 12px;
+        color: var(--text2);
+        margin-bottom: 12px;
+        line-height: 1.5;
+      }
+      .pj-stats {
+        display: flex;
+        gap: 14px;
+      }
+      .pj-st {
+        font-size: 11px;
+        color: var(--text3);
+      }
+      .pj-st strong {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
+        margin-bottom: 1px;
+      }
+      .pj-status {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        padding: 2px 8px;
+        border-radius: 99px;
+      }
+      .s-active {
+        background: rgba(29, 185, 84, 0.13);
+        color: var(--green);
+      }
+      .s-pending {
+        background: rgba(240, 165, 0, 0.13);
+        color: var(--amber);
+      }
+      .s-review {
+        background: rgba(59, 130, 246, 0.13);
+        color: var(--blue);
+      }
+
+      /* TABLE */
+      .sec-hdr {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 13px;
+      }
+      .sec-ttl {
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .tab-bar {
+        display: flex;
+        gap: 2px;
+        padding: 12px 26px 0;
+        border-bottom: 1px solid var(--border);
+        flex-shrink: 0;
+      }
+      .tab {
+        padding: 7px 14px;
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        color: var(--text2);
+        background: transparent;
+        border: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: all 0.2s;
+      }
+      .tab.active {
+        color: var(--green);
+        border-bottom-color: var(--green);
+      }
+      .tbl-wrap {
+        background: var(--bg2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+      .dtbl {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+      }
+      .dtbl th {
+        padding: 10px 14px;
+        text-align: left;
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--text3);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        border-bottom: 1px solid var(--border);
+      }
+      .dtbl td {
+        padding: 11px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .dtbl tr:last-child td {
+        border-bottom: none;
+      }
+      .dtbl tr:hover td {
+        background: rgba(255, 255, 255, 0.015);
+      }
+      .cn {
+        font-weight: 500;
+        color: var(--text);
+      }
+      .ci {
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        color: var(--text3);
+        margin-top: 2px;
+      }
+      .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+      }
+      .d-green {
+        background: var(--green);
+        box-shadow: 0 0 5px var(--green);
+      }
+      .d-amber {
+        background: var(--amber);
+      }
+      .d-blue {
+        background: var(--blue);
+      }
+      .ab {
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 1px solid var(--border);
+        background: transparent;
+        color: var(--text2);
+        font-family: inherit;
+        transition: all 0.15s;
+        margin-right: 4px;
+      }
+      .ab:hover {
+        background: var(--bg3);
+        color: var(--text);
+      }
+      .pbar {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+      }
+      .pt {
+        flex: 1;
+        height: 4px;
+        background: var(--border);
+        border-radius: 2px;
+      }
+      .pf {
+        height: 100%;
+        border-radius: 2px;
+        background: var(--green);
+      }
+      .pf.a {
+        background: var(--amber);
+      }
+      .pf.b {
+        background: var(--blue);
+      }
+
+      /* MODAL */
+      .mo {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.72);
+        z-index: 200;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        backdrop-filter: blur(4px);
+      }
+      .mo.open {
+        display: flex;
+      }
+      .modal {
+        background: var(--bg2);
+        border: 1px solid var(--border2);
+        border-radius: 20px;
+        width: 640px;
+        max-height: 90vh;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        box-shadow: 0 40px 80px rgba(0, 0, 0, 0.7);
+        animation: mi 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      @keyframes mi {
+        from {
+          opacity: 0;
+          transform: translateY(18px) scale(0.97);
+        }
+        to {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      .mhdr {
+        padding: 22px 26px 18px;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-shrink: 0;
+      }
+      .mico {
+        width: 40px;
+        height: 40px;
+        border-radius: 11px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 19px;
+        flex-shrink: 0;
+      }
+      .mico.plant {
+        background: rgba(29, 185, 84, 0.15);
+      }
+      .mico.power {
+        background: rgba(240, 165, 0, 0.15);
+      }
+      .mttl {
+        font-size: 16px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+      }
+      .msub {
+        font-size: 12px;
+        color: var(--text2);
+        margin-top: 2px;
+      }
+      .mclose {
+        margin-left: auto;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        width: 30px;
+        height: 30px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        color: var(--text2);
+        font-size: 16px;
+        transition: all 0.15s;
+        flex-shrink: 0;
+      }
+      .mclose:hover {
+        background: var(--bg4);
+        color: var(--text);
+      }
+      .mbody {
+        padding: 22px 26px;
+        overflow-y: auto;
+        flex: 1;
+      }
+      .mbody::-webkit-scrollbar {
+        width: 4px;
+      }
+      .mbody::-webkit-scrollbar-thumb {
+        background: var(--border2);
+        border-radius: 99px;
+      }
+      .mfoot {
+        padding: 16px 26px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        flex-shrink: 0;
+      }
+
+      /* STEPS */
+      .steps {
+        display: flex;
+        margin-bottom: 22px;
+      }
+      .si {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        position: relative;
+      }
+      .sd {
+        width: 26px;
+        height: 26px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 700;
+        border: 1.5px solid var(--border2);
+        color: var(--text3);
+        background: var(--bg3);
+        flex-shrink: 0;
+        transition: all 0.25s;
+        z-index: 1;
+      }
+      .si.done .sd {
+        background: var(--green);
+        border-color: var(--green);
+        color: #000;
+      }
+      .si.active .sd {
+        border-color: var(--green);
+        color: var(--green);
+        background: var(--green-glow);
+      }
+      .slbl {
+        font-size: 11px;
+        color: var(--text3);
+        margin-left: 7px;
+        white-space: nowrap;
+        transition: color 0.25s;
+      }
+      .si.active .slbl,
+      .si.done .slbl {
+        color: var(--text2);
+      }
+      .sline {
+        flex: 1;
+        height: 1px;
+        background: var(--border);
+        margin: 0 8px;
+        transition: background 0.25s;
+      }
+      .si.done .sline {
+        background: var(--green);
+      }
+
+      /* FORM */
+      .fr {
+        display: grid;
+        gap: 13px;
+        margin-bottom: 13px;
+      }
+      .fr.c2 {
+        grid-template-columns: 1fr 1fr;
+      }
+      .fg label {
+        display: block;
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--text2);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+      }
+      .fi,
+      .fs,
+      .fta {
+        width: 100%;
+        padding: 10px 13px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-sm);
+        color: var(--text);
+        font-family: inherit;
+        font-size: 13px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .fi:focus,
+      .fs:focus,
+      .fta:focus {
+        border-color: rgba(29, 185, 84, 0.5);
+        box-shadow: 0 0 0 3px var(--green-glow);
+      }
+      .fs {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238f9aaa' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+      }
+      .fs option {
+        background: var(--bg3);
+      }
+      .fta {
+        resize: vertical;
+        min-height: 75px;
+        line-height: 1.6;
+      }
+      .fhint {
+        font-size: 11px;
+        color: var(--text3);
+        margin-top: 4px;
+      }
+      .fdrop {
+        border: 1.5px dashed var(--border);
+        border-radius: var(--radius);
+        padding: 24px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: var(--bg3);
+      }
+      .fdrop:hover {
+        border-color: rgba(29, 185, 84, 0.4);
+        background: rgba(29, 185, 84, 0.04);
+      }
+      .mapv {
+        height: 140px;
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .mgrid {
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+        background-size: 22px 22px;
+      }
+      .mdot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: var(--green);
+        box-shadow:
+          0 0 0 4px rgba(29, 185, 84, 0.2),
+          0 0 0 8px rgba(29, 185, 84, 0.08);
+        animation: pulse 2s infinite;
+        z-index: 1;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          box-shadow:
+            0 0 0 4px rgba(29, 185, 84, 0.2),
+            0 0 0 8px rgba(29, 185, 84, 0.08);
+        }
+        50% {
+          box-shadow:
+            0 0 0 6px rgba(29, 185, 84, 0.3),
+            0 0 0 12px rgba(29, 185, 84, 0.04);
+        }
+      }
+      .mlbl {
+        position: absolute;
+        top: 9px;
+        left: 9px;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text3);
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+      }
+      .mco {
+        position: absolute;
+        bottom: 9px;
+        right: 9px;
+        font-family: "DM Mono", monospace;
+        font-size: 10px;
+        color: var(--text3);
+      }
+      .rblk {
+        background: var(--bg3);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        padding: 14px;
+        margin-bottom: 12px;
+      }
+      .rttl {
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--text2);
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      .rrow {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 4px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 12px;
+      }
+      .rrow:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+      .rk {
+        color: var(--text2);
+      }
+      .rv {
+        font-weight: 500;
+        text-align: right;
+      }
+      .swrap {
+        text-align: center;
+        padding: 16px 0;
+      }
+      .sico {
+        font-size: 44px;
+        margin-bottom: 14px;
+        animation: pop 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      @keyframes pop {
+        from {
+          transform: scale(0.5);
+          opacity: 0;
+        }
+        to {
+          transform: scale(1);
+          opacity: 1;
+        }
+      }
+
+      /* ACCESS DENIED */
+      .denied {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text3);
+        text-align: center;
+        padding: 40px;
+      }
+      .denied .ico {
+        font-size: 44px;
+        margin-bottom: 14px;
+      }
+      .denied .ttl {
+        font-size: 15px;
+        font-weight: 500;
+        color: var(--text2);
+        margin-bottom: 6px;
+      }
+      .denied .dsc {
+        font-size: 13px;
+        line-height: 1.6;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- LOGIN -->
+    <div id="login-screen">
+      <div class="login-bg"><div class="login-grid"></div></div>
+      <div class="login-card">
+        <div class="login-logo">
+          <div class="login-logo-icon">⚡</div>
+          <div>
+            <div class="login-logo-text">Lan<span>sub</span></div>
+            <div class="login-sub">GIS PowerNode Platform</div>
+          </div>
+        </div>
+
+        <!-- 3 Portal cards -->
+        <div class="portal-cards">
+          <div
+            class="pcard p-admin sel"
+            id="pc-admin"
+            onclick="selPortal('admin')"
+          >
+            <div class="pcard-icon">🛡️</div>
+            <div class="pcard-name">Admin</div>
+            <div class="pcard-desc">Full access & user management</div>
+          </div>
+          <div
+            class="pcard p-subadmin"
+            id="pc-subadmin"
+            onclick="selPortal('subadmin')"
+          >
+            <div class="pcard-icon">👤</div>
+            <div class="pcard-name">Sub Admin</div>
+            <div class="pcard-desc">Project creation & annotation</div>
+          </div>
+          <div
+            class="pcard p-client"
+            id="pc-client"
+            onclick="selPortal('client')"
+          >
+            <div class="pcard-icon">🏢</div>
+            <div class="pcard-name">Client</div>
+            <div class="pcard-desc">View reports & project status</div>
+          </div>
+        </div>
+
+        <div class="portal-ind p-admin" id="pind">
+          🛡️ &nbsp;Signing in as <strong>&nbsp;Admin&nbsp;</strong> — Full
+          access
+        </div>
+
+        <div class="field">
+          <label class="field-label">Email address</label>
+          <input
+            class="field-input"
+            type="email"
+            id="lemail"
+            value="admin@lansub.io"
+          />
+        </div>
+        <div class="field">
+          <label class="field-label">Password</label>
+          <input class="field-input" type="password" value="••••••••" />
+        </div>
+        <button class="login-btn lb-green" id="lbtn" onclick="doLogin()">
+          Sign in →
+        </button>
+        <p class="login-hint">Forgot password? <a>Reset via email</a></p>
+      </div>
+    </div>
+
+    <!-- APP -->
+    <div id="app">
+      <div class="shell">
+        <!-- SIDEBAR -->
+        <aside class="sidebar">
+          <div class="sb-logo">
+            <div class="sb-logo-icon">⚡</div>
+            <div class="sb-logo-text">Lansub <small>GIS Platform</small></div>
+          </div>
+          <div class="sb-section">
+            <div class="sb-lbl">Overview</div>
+            <button class="sb-item active" onclick="nav('dashboard', this)">
+              <span class="sb-icon">🗂</span>Dashboard
+            </button>
+            <button class="sb-item" onclick="nav('map', this)">
+              <span class="sb-icon">🗺</span>Live Map
+            </button>
+            <button class="sb-item" onclick="nav('analytics', this)">
+              <span class="sb-icon">📊</span>Analytics
+            </button>
+          </div>
+          <div class="sb-section">
+            <div class="sb-lbl">Projects</div>
+            <button class="sb-item" onclick="nav('plantation', this)">
+              <span class="sb-icon">🌿</span>Plantation<span
+                class="sb-badge bg-green"
+                id="bp"
+                >6</span
+              >
+            </button>
+            <button class="sb-item" onclick="nav('powerline', this)">
+              <span class="sb-icon">⚡</span>Powerline<span
+                class="sb-badge bg-amber"
+                id="bw"
+                >4</span
+              >
+            </button>
+            <button class="sb-item" onclick="nav('drone', this)">
+              <span class="sb-icon">🚁</span>Drone Uploads
+            </button>
+          </div>
+          <div class="sb-section" id="mgmt-sec">
+            <div class="sb-lbl">Management</div>
+            <button class="sb-item" onclick="nav('clients', this)">
+              <span class="sb-icon">👥</span>Clients
+            </button>
+            <button class="sb-item" onclick="nav('groups', this)">
+              <span class="sb-icon">🏢</span>Groups
+            </button>
+            <button
+              class="sb-item"
+              id="sa-btn"
+              onclick="nav('subadmins', this)"
+            >
+              <span class="sb-icon">🔑</span>Sub Admins
+            </button>
+          </div>
+          <div class="sb-div"></div>
+          <div class="sb-section">
+            <button class="sb-item" onclick="nav('settings', this)">
+              <span class="sb-icon">⚙️</span>Settings
+            </button>
+          </div>
+          <div class="sb-user" onclick="doLogout()">
+            <div
+              class="sb-av"
+              id="sbav"
+              style="background: #1db954; color: #000"
+            >
+              AD
+            </div>
+            <div class="sb-uinfo">
+              <div class="sb-uname" id="sbun">Admin</div>
+              <div class="sb-urole" id="sbue">admin@lansub.io</div>
+            </div>
+            <div class="sb-out">⏻</div>
+          </div>
+        </aside>
+
+        <!-- MAIN -->
+        <div class="main">
+          <!-- DASHBOARD -->
+          <div
+            id="vd"
+            style="display: flex; flex-direction: column; height: 100%"
+          >
+            <div class="topbar">
+              <div class="topbar-title">
+                Dashboard <small id="dwelcome">Welcome back</small>
+              </div>
+              <div id="dacts"></div>
+            </div>
+            <div class="content">
+              <div class="kpi-grid">
+                <div class="kpi" style="--kg: rgba(29, 185, 84, 0.14)">
+                  <div class="kpi-lbl">Total Projects</div>
+                  <div class="kpi-val">10</div>
+                  <div class="kpi-sub">6 Plantation · 4 Powerline</div>
+                  <div class="kpi-trend">↑ 2 this month</div>
+                </div>
+                <div class="kpi" style="--kg: rgba(13, 207, 180, 0.1)">
+                  <div class="kpi-lbl">Hectares Mapped</div>
+                  <div class="kpi-val">4,821</div>
+                  <div class="kpi-sub">Across all plantations</div>
+                  <div class="kpi-trend">↑ 12.4%</div>
+                </div>
+                <div class="kpi" style="--kg: rgba(240, 165, 0, 0.1)">
+                  <div class="kpi-lbl">Powerline km</div>
+                  <div class="kpi-val">312</div>
+                  <div class="kpi-sub">Annotated & reviewed</div>
+                  <div class="kpi-trend">↑ 38 km</div>
+                </div>
+                <div class="kpi" style="--kg: rgba(59, 130, 246, 0.1)">
+                  <div class="kpi-lbl">Active Clients</div>
+                  <div class="kpi-val">14</div>
+                  <div class="kpi-sub">3 groups · 11 individual</div>
+                  <div class="kpi-trend">↑ 1 new</div>
+                </div>
+              </div>
+              <div class="sec-hdr">
+                <div class="sec-ttl">Recent Projects</div>
+              </div>
+              <div class="proj-grid">
+                <div class="pj-card plant" onclick="nav('plantation', null)">
+                  <span class="pj-status s-active">Active</span>
+                  <div class="pj-badge b-plant">🌿 Plantation</div>
+                  <div class="pj-name">Nilgiri Block A — Phase 2</div>
+                  <div class="pj-meta">
+                    Ooty, Tamil Nadu · 842 ha · Mar 2025
+                  </div>
+                  <div class="pj-stats">
+                    <div class="pj-st"><strong>94%</strong>Coverage</div>
+                    <div class="pj-st"><strong>12,400</strong>Trees</div>
+                    <div class="pj-st"><strong>8</strong>Flights</div>
+                  </div>
+                </div>
+                <div class="pj-card power" onclick="nav('powerline', null)">
+                  <span class="pj-status s-review">In Review</span>
+                  <div class="pj-badge b-power">⚡ Powerline</div>
+                  <div class="pj-name">Salem–Erode 230kV Corridor</div>
+                  <div class="pj-meta">
+                    Salem, Tamil Nadu · 78 km · Jan 2025
+                  </div>
+                  <div class="pj-stats">
+                    <div class="pj-st"><strong>61 km</strong>Done</div>
+                    <div class="pj-st"><strong>44</strong>Towers</div>
+                    <div class="pj-st"><strong>3</strong>Anomalies</div>
+                  </div>
+                </div>
+                <div class="pj-card plant">
+                  <span class="pj-status s-pending">Pending</span>
+                  <div class="pj-badge b-plant">🌿 Plantation</div>
+                  <div class="pj-name">Coorg Coffee Estate Survey</div>
+                  <div class="pj-meta">
+                    Kodagu, Karnataka · 1,200 ha · Jun 2025
+                  </div>
+                  <div class="pj-stats">
+                    <div class="pj-st"><strong>0%</strong>Coverage</div>
+                    <div class="pj-st"><strong>—</strong>Trees</div>
+                    <div class="pj-st"><strong>0</strong>Flights</div>
+                  </div>
+                </div>
+                <div class="pj-card power">
+                  <span class="pj-status s-active">Active</span>
+                  <div class="pj-badge b-power">⚡ Powerline</div>
+                  <div class="pj-name">Hosur Industrial Ring Network</div>
+                  <div class="pj-meta">
+                    Hosur, Tamil Nadu · 52 km · Feb 2025
+                  </div>
+                  <div class="pj-stats">
+                    <div class="pj-st"><strong>52 km</strong>Done</div>
+                    <div class="pj-st"><strong>31</strong>Towers</div>
+                    <div class="pj-st"><strong>0</strong>Anomalies</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- PLANTATION PAGE -->
+          <div
+            id="vp"
+            style="display: none; flex-direction: column; height: 100%"
+          >
+            <div class="topbar">
+              <div class="topbar-title">
+                Plantation Projects
+                <small>Tree annotation & canopy coverage</small>
+              </div>
+              <div id="pacts"></div>
+            </div>
+            <div class="tab-bar">
+              <button class="tab active">All</button
+              ><button class="tab">Active</button
+              ><button class="tab">Pending</button
+              ><button class="tab">Completed</button>
+            </div>
+            <div class="content">
+              <div class="tbl-wrap">
+                <table class="dtbl">
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Location</th>
+                      <th>Area</th>
+                      <th>Trees</th>
+                      <th>Coverage</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div class="cn">Nilgiri Block A — Phase 2</div>
+                        <div class="ci">PLT-2024-001</div>
+                      </td>
+                      <td>Ooty, Tamil Nadu</td>
+                      <td>842 ha</td>
+                      <td>12,400</td>
+                      <td>
+                        <div class="pbar">
+                          <div class="pt">
+                            <div class="pf" style="width: 94%"></div>
+                          </div>
+                          <span style="font-size: 11px; color: var(--text2)"
+                            >94%</span
+                          >
+                        </div>
+                      </td>
+                      <td><span class="dot d-green"></span>Active</td>
+                      <td>
+                        <button class="ab">View</button
+                        ><button class="ab">Annotate</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="cn">Coorg Coffee Estate Survey</div>
+                        <div class="ci">PLT-2025-002</div>
+                      </td>
+                      <td>Kodagu, Karnataka</td>
+                      <td>1,200 ha</td>
+                      <td>—</td>
+                      <td>
+                        <div class="pbar">
+                          <div class="pt">
+                            <div class="pf a" style="width: 0%"></div>
+                          </div>
+                          <span style="font-size: 11px; color: var(--text2)"
+                            >0%</span
+                          >
+                        </div>
+                      </td>
+                      <td><span class="dot d-amber"></span>Pending</td>
+                      <td>
+                        <button class="ab">View</button
+                        ><button class="ab">Edit</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="cn">Munnar Tea Plantation</div>
+                        <div class="ci">PLT-2024-003</div>
+                      </td>
+                      <td>Idukki, Kerala</td>
+                      <td>560 ha</td>
+                      <td>8,900</td>
+                      <td>
+                        <div class="pbar">
+                          <div class="pt">
+                            <div class="pf b" style="width: 100%"></div>
+                          </div>
+                          <span style="font-size: 11px; color: var(--text2)"
+                            >100%</span
+                          >
+                        </div>
+                      </td>
+                      <td><span class="dot d-blue"></span>Review</td>
+                      <td><button class="ab">Report</button></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- POWERLINE PAGE -->
+          <div
+            id="vw"
+            style="display: none; flex-direction: column; height: 100%"
+          >
+            <div class="topbar">
+              <div class="topbar-title">
+                Powerline Projects
+                <small>Corridor annotation & anomaly detection</small>
+              </div>
+              <div id="wacts"></div>
+            </div>
+            <div class="tab-bar">
+              <button class="tab active">All</button
+              ><button class="tab">Active</button
+              ><button class="tab">In Review</button
+              ><button class="tab">Completed</button>
+            </div>
+            <div class="content">
+              <div class="tbl-wrap">
+                <table class="dtbl">
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Corridor</th>
+                      <th>Length</th>
+                      <th>Towers</th>
+                      <th>Anomalies</th>
+                      <th>Status</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>
+                        <div class="cn">Salem–Erode 230kV Corridor</div>
+                        <div class="ci">PWR-2025-001</div>
+                      </td>
+                      <td>Salem → Erode</td>
+                      <td>78 km</td>
+                      <td>44</td>
+                      <td style="color: var(--red); font-weight: 600">3</td>
+                      <td><span class="dot d-blue"></span>Review</td>
+                      <td>
+                        <button class="ab">View</button
+                        ><button class="ab">Annotate</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="cn">Hosur Industrial Ring Network</div>
+                        <div class="ci">PWR-2025-002</div>
+                      </td>
+                      <td>Hosur Ring</td>
+                      <td>52 km</td>
+                      <td>31</td>
+                      <td style="color: var(--green); font-weight: 600">0</td>
+                      <td><span class="dot d-green"></span>Active</td>
+                      <td>
+                        <button class="ab">View</button
+                        ><button class="ab">Report</button>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td>
+                        <div class="cn">Coimbatore–Palakkad 110kV</div>
+                        <div class="ci">PWR-2024-003</div>
+                      </td>
+                      <td>Coimbatore → Palakkad</td>
+                      <td>112 km</td>
+                      <td>68</td>
+                      <td style="color: var(--amber); font-weight: 600">7</td>
+                      <td><span class="dot d-amber"></span>Pending</td>
+                      <td>
+                        <button class="ab">View</button
+                        ><button class="ab">Edit</button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- OTHER -->
+          <div
+            id="vo"
+            style="display: none; flex-direction: column; height: 100%"
+          >
+            <div class="topbar">
+              <div class="topbar-title" id="ot">Page</div>
+            </div>
+            <div
+              class="content"
+              style="
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+              "
+            >
+              <div id="ob"></div>
+            </div>
+          </div>
+        </div>
+        <!-- /main -->
+      </div>
+      <!-- /shell -->
+    </div>
+    <!-- /app -->
+
+    <!-- MODAL -->
+    <div class="mo" id="mo" onclick="ocl(event)">
+      <div class="modal">
+        <div class="mhdr">
+          <div class="mico plant" id="mico">🌿</div>
+          <div>
+            <div class="mttl" id="mttl">New Plantation Project</div>
+            <div class="msub" id="msub">Step 1 of 4</div>
+          </div>
+          <div class="mclose" onclick="cm()">✕</div>
+        </div>
+        <div style="padding: 16px 26px 0">
+          <div class="steps" id="stbar"></div>
+        </div>
+        <div class="mbody" id="mbody"></div>
+        <div class="mfoot" id="mfoot"></div>
+      </div>
+    </div>
+
+    <script>
+      // ── CONFIG ──
+      const P = {
+        admin: {
+          label: "Admin",
+          ico: "🛡️",
+          color: "#1db954",
+          avbg: "#1db954",
+          avc: "#000",
+          email: "admin@lansub.io",
+          ind: "🛡️ &nbsp;Signing in as <strong>&nbsp;Admin&nbsp;</strong> — Full access",
+          btn: "lb-green",
+        },
+        subadmin: {
+          label: "Sub Admin",
+          ico: "👤",
+          color: "#3b82f6",
+          avbg: "#3b82f6",
+          avc: "#fff",
+          email: "subadmin@lansub.io",
+          ind: "👤 &nbsp;Signing in as <strong>&nbsp;Sub Admin&nbsp;</strong> — Project & annotation access",
+          btn: "lb-blue",
+        },
+        client: {
+          label: "Client",
+          ico: "🏢",
+          color: "#f0a500",
+          avbg: "#f0a500",
+          avc: "#000",
+          email: "client@lansub.io",
+          ind: "🏢 &nbsp;Signing in as <strong>&nbsp;Client&nbsp;</strong> — View only access",
+          btn: "lb-amber",
+        },
+      };
+      let cp = "admin",
+        cs = 1,
+        pt = "plantation",
+        wd = {};
+
+      // ── LOGIN ──
+      function selPortal(p) {
+        cp = p;
+        ["admin", "subadmin", "client"].forEach((x) => {
+          document.getElementById("pc-" + x).classList.toggle("sel", x === p);
+        });
+        const i = P[p];
+        const ind = document.getElementById("pind");
+        ind.className = "portal-ind p-" + p;
+        ind.innerHTML = i.ind;
+        document.getElementById("lemail").value = i.email;
+        const lb = document.getElementById("lbtn");
+        lb.className = "login-btn " + i.btn;
+      }
+
+      function doLogin() {
+        const i = P[cp];
+        const em = document.getElementById("lemail").value || i.email;
+        document.getElementById("sbun").textContent = i.label;
+        document.getElementById("sbue").textContent = em;
+        const av = document.getElementById("sbav");
+        av.style.background = i.avbg;
+        av.style.color = i.avc;
+        av.textContent = i.label
+          .split(" ")
+          .map((w) => w[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2);
+
+        // role-based sidebar
+        const ms = document.getElementById("mgmt-sec");
+        const sb = document.getElementById("sa-btn");
+        if (cp === "admin") {
+          ms.style.display = "";
+          sb.style.display = "";
+        } else if (cp === "subadmin") {
+          ms.style.display = "";
+          sb.style.display = "none";
+        } else {
+          ms.style.display = "none";
+        }
+
+        const ls = document.getElementById("login-screen");
+        ls.style.opacity = "0";
+        setTimeout(() => {
+          ls.style.display = "none";
+          document.getElementById("app").style.display = "block";
+          nav("dashboard", document.querySelector(".sb-item"));
+        }, 280);
+      }
+
+      function doLogout() {
+        document.getElementById("app").style.display = "none";
+        const ls = document.getElementById("login-screen");
+        ls.style.opacity = "0";
+        ls.style.display = "flex";
+        requestAnimationFrame(() => {
+          ls.style.transition = "opacity .2s";
+          ls.style.opacity = "1";
+        });
+      }
+
+      // ── NAV ──
+      function nav(view, btn) {
+        document
+          .querySelectorAll(".sb-item")
+          .forEach((i) => i.classList.remove("active"));
+        if (btn) btn.classList.add("active");
+        ["vd", "vp", "vw", "vo"].forEach((v) => {
+          const e = document.getElementById(v);
+          if (e) e.style.display = "none";
+        });
+
+        const blocked =
+          cp === "client" &&
+          ["drone", "clients", "groups", "subadmins", "settings"].includes(
+            view,
+          );
+        const map = { dashboard: "vd", plantation: "vp", powerline: "vw" };
+        const id = map[view] || "vo";
+        const el = document.getElementById(id);
+        el.style.display = "flex";
+        el.style.flexDirection = "column";
+        el.style.height = "100%";
+
+        if (view === "dashboard") {
+          document.getElementById("dwelcome").textContent =
+            "Welcome back, " + P[cp].label;
+          const da = document.getElementById("dacts");
+          // Dashboard shows BOTH create buttons (except client)
+          da.innerHTML =
+            cp === "client"
+              ? ""
+              : `<button class="btn btn-ghost" style="margin-right:8px" onclick="om('plantation')">+ Plantation Project</button>
+       <button class="btn btn-amber" onclick="om('powerline')">+ Powerline Project</button>`;
+        }
+
+        // Plantation page — ONLY plantation create button
+        if (view === "plantation") {
+          document.getElementById("pacts").innerHTML =
+            cp === "client"
+              ? ""
+              : `<button class="btn btn-green" onclick="om('plantation')">+ New Plantation Project</button>`;
+        }
+
+        // Powerline page — ONLY powerline create button
+        if (view === "powerline") {
+          document.getElementById("wacts").innerHTML =
+            cp === "client"
+              ? ""
+              : `<button class="btn btn-amber" onclick="om('powerline')">+ New Powerline Project</button>`;
+        }
+
+        if (id === "vo") {
+          const titles = {
+            map: "Live Map",
+            analytics: "Analytics",
+            drone: "Drone Uploads",
+            clients: "Clients",
+            groups: "Groups",
+            subadmins: "Sub Admins",
+            settings: "Settings",
+          };
+          document.getElementById("ot").innerHTML =
+            (titles[view] || view) +
+            ' <small style="font-size:12px;font-weight:400;color:var(--text2)">' +
+            (blocked ? "Access restricted" : "Under development") +
+            "</small>";
+          document.getElementById("ob").innerHTML = blocked
+            ? `<div class="denied"><div class="ico">🔒</div><div class="ttl">Access Restricted</div><div class="dsc">Your <strong>${P[cp].label}</strong> account<br>doesn't have permission for this section.</div></div>`
+            : `<div class="denied"><div class="ico">🚧</div><div class="ttl">Coming Soon</div><div class="dsc">This section is under development.</div></div>`;
+        }
+      }
+
+      // ── MODAL ──
+      function om(type) {
+        pt = type;
+        cs = 1;
+        wd = { type };
+        document.getElementById("mo").classList.add("open");
+        document.getElementById("mico").className = "mico " + type;
+        document.getElementById("mico").textContent =
+          type === "plantation" ? "🌿" : "⚡";
+        document.getElementById("mttl").textContent =
+          type === "plantation"
+            ? "New Plantation Project"
+            : "New Powerline Project";
+        rs(1);
+      }
+      function cm() {
+        document.getElementById("mo").classList.remove("open");
+      }
+      function ocl(e) {
+        if (e.target === document.getElementById("mo")) cm();
+      }
+
+      function stHTML(a) {
+        return ["Details", "Location", "Settings", "Review"]
+          .map((l, i) => {
+            const n = i + 1,
+              cls = n < a ? "done" : n === a ? "active" : "";
+            return `<div class="si ${cls}"><div class="sd">${n < a ? "✓" : n}</div><span class="slbl">${l}</span>${n < 4 ? '<div class="sline"></div>' : ""}</div>`;
+          })
+          .join("");
+      }
+
+      function rs(s) {
+        document.getElementById("stbar").innerHTML = stHTML(s);
+        const subs = [
+          "Project details",
+          "Location & boundary",
+          "Configuration",
+          "Review & create",
+        ];
+        document.getElementById("msub").textContent =
+          `Step ${s} of 4 — ${subs[s - 1]}`;
+        const isP = pt === "plantation",
+          ac = isP ? "var(--green)" : "var(--amber)";
+
+        // footer
+        const mf = document.getElementById("mfoot");
+        if (s === 4) {
+          mf.innerHTML = `<button class="btn btn-ghost" onclick="wb()">Back</button><button class="btn" style="background:${ac};color:#000" onclick="wsub()">✓ Create Project</button>`;
+        } else {
+          mf.innerHTML = `${s > 1 ? '<button class="btn btn-ghost" onclick="wb()">Back</button>' : "<span></span>"}<button class="btn" style="background:${ac};color:#000" onclick="wn()">Continue →</button>`;
+        }
+
+        const b = document.getElementById("mbody");
+        if (s === 1) {
+          b.innerHTML = `
+      <div class="fr"><div class="fg"><label>Project name</label><input class="fi" id="fn" placeholder="${isP ? "e.g. Nilgiri Block B" : "e.g. Salem–Coimbatore 110kV"}" value="${wd.name || ""}"></div></div>
+      <div class="fr c2">
+        <div class="fg"><label>Client</label><select class="fs"><option>Select…</option><option selected>TANGEDCO</option><option>Forest Dept. TN</option><option>Karnataka Forestry</option><option>Kerala Electricity Board</option></select></div>
+        <div class="fg"><label>${isP ? "Plantation type" : "Voltage class"}</label><select class="fs">${isP ? "<option>Teak</option><option>Eucalyptus</option><option>Coffee</option><option>Tea</option><option>Mixed Forest</option>" : "<option>11 kV</option><option>33 kV</option><option>110 kV</option><option selected>230 kV</option><option>400 kV</option>"}</select></div>
+      </div>
+      <div class="fr"><div class="fg"><label>Description</label><textarea class="fta" placeholder="Brief project description…">${wd.desc || ""}</textarea></div></div>
+      <div class="fr"><div class="fg"><label>Assign to group (optional)</label><select class="fs"><option>— None —</option><option>Group A</option><option>Group B</option></select></div></div>`;
+        }
+        if (s === 2) {
+          b.innerHTML = `
+      <div class="fr c2">
+        <div class="fg"><label>State</label><select class="fs"><option>Tamil Nadu</option><option>Karnataka</option><option>Kerala</option><option>Andhra Pradesh</option></select></div>
+        <div class="fg"><label>District</label><input class="fi" placeholder="e.g. Salem" value="${wd.district || "Salem"}"></div>
+      </div>
+      <div class="fr c2">
+        <div class="fg"><label>${isP ? "Area (ha)" : "Length (km)"}</label><input class="fi" type="number" placeholder="${isP ? "e.g. 850" : "e.g. 78"}" value="${wd.size || ""}"></div>
+        <div class="fg"><label>${isP ? "Block / Zone" : "Start → End"}</label><input class="fi" placeholder="${isP ? "e.g. Block A" : "e.g. Salem → Erode"}"></div>
+      </div>
+      <div class="fg" style="margin-bottom:13px"><label>Map boundary</label>
+        <div class="mapv"><div class="mgrid"></div><div class="mlbl">GIS Preview</div><div class="mdot"></div><div class="mco">11.6643° N, 78.1460° E</div></div>
+        <div class="fhint">Full boundary editor opens after project creation</div>
+      </div>
+      <div class="fr c2">
+        <div class="fg"><label>Latitude</label><input class="fi" value="11.6643" style="font-family:'DM Mono',monospace;font-size:12px"></div>
+        <div class="fg"><label>Longitude</label><input class="fi" value="78.1460" style="font-family:'DM Mono',monospace;font-size:12px"></div>
+      </div>`;
+        }
+        if (s === 3) {
+          b.innerHTML = `
+      <div class="fr c2">
+        <div class="fg"><label>Start date</label><input class="fi" type="date" value="2025-06-01"></div>
+        <div class="fg"><label>End date</label><input class="fi" type="date" value="2025-09-30"></div>
+      </div>
+      ${
+        isP
+          ? `
+      <div class="fr c2">
+        <div class="fg"><label>Drone resolution</label><select class="fs"><option>2 cm/px (Ultra)</option><option selected>5 cm/px (High)</option><option>10 cm/px (Standard)</option></select></div>
+        <div class="fg"><label>Tree detection model</label><select class="fs"><option selected>Auto-detect v3</option><option>Manual annotation</option><option>Hybrid</option></select></div>
+      </div>`
+          : `
+      <div class="fr c2">
+        <div class="fg"><label>Annotation method</label><select class="fs"><option selected>Semi-auto + review</option><option>Full manual</option><option>AI-assisted</option></select></div>
+        <div class="fg"><label>Encroachment threshold</label><select class="fs"><option>0.5 m</option><option selected>1 m</option><option>2 m</option></select></div>
+      </div>`
+      }
+      <div class="fr"><div class="fg"><label>Upload ${isP ? "boundary KML" : "corridor shapefile"} (optional)</label>
+        <div class="fdrop"><div style="font-size:22px;margin-bottom:6px">📁</div><div style="font-size:13px;color:var(--text2)">Drag & drop or click to upload</div><div style="font-size:11px;color:var(--text3);margin-top:3px">.kml .kmz .shp .geojson — max 50 MB</div></div>
+      </div></div>
+      <div class="fr"><div class="fg"><label>Assign annotators (optional)</label><input class="fi" placeholder="Search team members…"></div></div>`;
+        }
+        if (s === 4) {
+          const nm =
+            wd.name ||
+            (isP ? "New Plantation Project" : "New Powerline Project");
+          b.innerHTML = `
+      <div class="rblk"><div class="rttl">${isP ? "🌿" : "⚡"} Project details</div>
+        <div class="rrow"><span class="rk">Type</span><span class="rv">${isP ? "Plantation" : "Powerline"}</span></div>
+        <div class="rrow"><span class="rk">Name</span><span class="rv">${nm}</span></div>
+        <div class="rrow"><span class="rk">Client</span><span class="rv">TANGEDCO</span></div>
+        <div class="rrow"><span class="rk">${isP ? "Type" : "Voltage"}</span><span class="rv">${isP ? "Teak" : "230 kV"}</span></div>
+      </div>
+      <div class="rblk"><div class="rttl">📍 Location</div>
+        <div class="rrow"><span class="rk">State / District</span><span class="rv">Tamil Nadu — Salem</span></div>
+        <div class="rrow"><span class="rk">${isP ? "Area" : "Length"}</span><span class="rv">${isP ? "850 ha" : "78 km"}</span></div>
+        <div class="rrow"><span class="rk">Coordinates</span><span class="rv" style="font-family:'DM Mono',monospace;font-size:11px">11.6643°N 78.1460°E</span></div>
+      </div>
+      <div class="rblk"><div class="rttl">⚙️ Settings</div>
+        <div class="rrow"><span class="rk">Timeline</span><span class="rv">1 Jun → 30 Sep 2025</span></div>
+        <div class="rrow"><span class="rk">${isP ? "Resolution" : "Method"}</span><span class="rv">${isP ? "5 cm/px" : "Semi-auto"}</span></div>
+      </div>
+      <div style="background:rgba(29,185,84,.07);border:1px solid rgba(29,185,84,.18);border-radius:var(--radius);padding:12px 14px;font-size:13px;color:var(--text2);line-height:1.6">
+        ✅ Everything looks good. Click <strong>Create Project</strong> to proceed to the map editor.
+      </div>`;
+        }
+      }
+
+      function wb() {
+        if (cs > 1) {
+          cs--;
+          rs(cs);
+        }
+      }
+      function wn() {
+        if (cs === 1) {
+          const n = document.getElementById("fn");
+          if (n) wd.name = n.value;
+        }
+        cs++;
+        rs(cs);
+      }
+
+      function wsub() {
+        const isP = pt === "plantation";
+        document.getElementById("mbody").innerHTML =
+          `<div class="swrap"><div class="sico">${isP ? "🌿" : "⚡"}</div><div style="font-size:18px;font-weight:600;margin-bottom:8px">Project created!</div><div style="font-size:13px;color:var(--text2);line-height:1.6">Your ${isP ? "plantation" : "powerline"} project has been created successfully.</div></div>`;
+        document.getElementById("mfoot").innerHTML =
+          `<button class="btn btn-ghost" onclick="cm()">Close</button><button class="btn" style="background:${isP ? "var(--green)" : "var(--amber)"};color:#000" onclick="cm();nav('${pt}',null)">Open Project →</button>`;
+        const bid = isP ? "bp" : "bw";
+        document.getElementById(bid).textContent =
+          parseInt(document.getElementById(bid).textContent) + 1;
+      }
+
+      window.onload = () => {
+        document.getElementById("vd").style.display = "flex";
+        document.getElementById("vd").style.flexDirection = "column";
+        document.getElementById("vd").style.height = "100%";
+      };
+    </script>
+  </body>
+</html>

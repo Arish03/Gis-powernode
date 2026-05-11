@@ -4,7 +4,7 @@ import { Plus, Users, FolderOpen, Activity, CheckCircle2, Loader2, ChevronRight,
 import toast from 'react-hot-toast';
 import api from '../../api/client';
 import { useAuth } from '../../contexts/AuthContext';
-import Navbar from '../../components/Navbar';
+import SidebarLayout from '../../components/SidebarLayout';
 import KpiCard from '../../components/KpiCard';
 import SearchInput from '../../components/ui/SearchInput';
 import ConfirmModal from '../../components/ConfirmModal';
@@ -182,32 +182,18 @@ export default function AdminDashboard() {
   });
 
   return (
-    <div className="page-bg">
-      <div className="blob-container">
-        <div className="blob blob-green" />
-        <div className="blob blob-teal" />
-        <div className="blob blob-blue" />
-      </div>
-
-      <Navbar />
-
-      <main className="relative z-10 max-w-screen-xl mx-auto px-4 sm:px-6 py-8 space-y-6">
-        {/* Page Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="font-heading font-extrabold text-slate-800 text-2xl sm:text-3xl tracking-tight">
-              Dashboard
-            </h1>
-            <p className="text-slate-500 text-sm mt-1">Manage clients and their plantation projects.</p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            {isStaff && (
-              <button className="btn-secondary gap-2" onClick={() => navigate('/admin/clients')}>
-                <Users size={16} /> Manage Clients
-              </button>
-            )}
-          </div>
-        </div>
+    <SidebarLayout
+      title="Dashboard"
+      subtitle="Manage clients and their plantation projects."
+      actions={
+        isStaff && (
+          <button className="btn-secondary gap-2" onClick={() => navigate('/admin/clients')}>
+            <Users size={16} /> Manage Clients
+          </button>
+        )
+      }
+    >
+      <div className="space-y-6">
 
         {/* KPI Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -448,7 +434,7 @@ export default function AdminDashboard() {
             )}
           </div>
         )}
-      </main>
+      </div>
 
       {/* ── Add/Edit Node Modal ──────────────────────────────── */}
       {showNodeModal && (
@@ -516,6 +502,6 @@ export default function AdminDashboard() {
       )}
 
       <ConfirmModal {...confirmModal} />
-    </div>
+    </SidebarLayout>
   );
 }
