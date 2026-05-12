@@ -1,30 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   FolderOpen, Map, BarChart3, Users, Settings, LogOut, 
-  Menu, X, Layers3, ShieldAlert, FileText 
+  Menu, X, Layers3, ShieldAlert, FileText, Trees, Zap, PlaneTakeoff, Cpu
 } from 'lucide-react';
+import api from '../api/client';
 
 export default function SidebarLayout({ children, title, subtitle, actions }) {
   const { user, logout, isAdmin, isStaff } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [counts, setCounts] = useState({ plantation: 0, powerline: 0 });
+
+  useEffect(() => {
+    if (isStaff) {
+      api.get('/projects').then(res => {
+        const projects = res.data.projects || [];
+        setCounts({
+          plantation: projects.filter(p => p.project_type === 'TREE').length,
+          powerline: projects.filter(p => p.project_type === 'POWERLINE').length
+        });
+      }).catch(() => {});
+    }
+  }, [isStaff]);
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
   const initials = user?.full_name?.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) || '??';
 
-  const NavItem = ({ to, icon, label, exact = false }) => {
+  const NavItem = ({ to, icon, label, exact = false, badge }) => {
     const isActive = exact ? location.pathname === to : location.pathname.startsWith(to);
     return (
       <button 
         onClick={() => { navigate(to); setMobileOpen(false); }}
         className={`sidebar-item ${isActive ? 'active' : ''}`}
       >
-        <span className="flex-shrink-0 opacity-80">{icon}</span>
-        {label}
+        <div className="flex items-center gap-3 flex-1">
+          <span className="flex-shrink-0 opacity-80">{icon}</span>
+          <span>{label}</span>
+        </div>
+        {badge !== undefined && (
+          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}`}>
+            {badge}
+          </span>
+        )}
       </button>
     );
   };
@@ -58,6 +79,16 @@ export default function SidebarLayout({ children, title, subtitle, actions }) {
             <NavItem to={isStaff ? "/admin/analytics" : "/client/analytics"} icon={<BarChart3 size={16} />} label="Analytics" />
           </div>
 
+          {/* Projects Section */}
+          {isStaff && (
+            <div className="space-y-1">
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Projects</div>
+              <NavItem to="/admin/projects/plantation" icon={<Trees size={16} />} label="Plantation" badge={counts.plantation} />
+              <NavItem to="/admin/projects/powerline" icon={<Zap size={16} />} label="Powerline" badge={counts.powerline} />
+              <NavItem to="/admin/uploads" icon={<PlaneTakeoff size={16} />} label="Drone Uploads" />
+            </div>
+          )}
+
           {/* Management Section (Staff Only) */}
           {isStaff && (
             <div className="space-y-1">
@@ -65,6 +96,9 @@ export default function SidebarLayout({ children, title, subtitle, actions }) {
               <NavItem to="/admin/clients" icon={<Users size={16} />} label="Clients" />
               {isAdmin && (
                 <NavItem to="/admin/sub-admins" icon={<ShieldAlert size={16} />} label="Sub Admins" />
+              )}
+              {isAdmin && (
+                <NavItem to="/admin/processing-nodes" icon={<Cpu size={16} />} label="Processing Nodes" />
               )}
             </div>
           )}
@@ -136,12 +170,24 @@ export default function SidebarLayout({ children, title, subtitle, actions }) {
                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Overview</div>
                  <NavItem to={isStaff ? "/admin" : "/"} exact icon={<FolderOpen size={16} />} label="Dashboard" />
                </div>
+
+               {isStaff && (
+                 <div className="space-y-1">
+                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Projects</div>
+                   <NavItem to="/admin/projects/plantation" icon={<Trees size={16} />} label="Plantation" badge={counts.plantation} />
+                   <NavItem to="/admin/projects/powerline" icon={<Zap size={16} />} label="Powerline" badge={counts.powerline} />
+                 </div>
+               )}
+
                {isStaff && (
                  <div className="space-y-1">
                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-3 mb-2">Management</div>
                    <NavItem to="/admin/clients" icon={<Users size={16} />} label="Clients" />
                    {isAdmin && (
                      <NavItem to="/admin/sub-admins" icon={<ShieldAlert size={16} />} label="Sub Admins" />
+                   )}
+                   {isAdmin && (
+                     <NavItem to="/admin/processing-nodes" icon={<Cpu size={16} />} label="Processing Nodes" />
                    )}
                  </div>
                )}

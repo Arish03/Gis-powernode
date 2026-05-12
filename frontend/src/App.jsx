@@ -21,6 +21,13 @@ import PowerlineAnnotator from './pages/admin/PowerlineAnnotator';
 import PowerlineSummary from './pages/admin/PowerlineSummary';
 import PowerlineReportView from './pages/client/PowerlineReportView';
 
+// New Pages
+import ProcessingNodes from './pages/admin/ProcessingNodes';
+import PlantationProjects from './pages/admin/PlantationProjects';
+import PowerlineProjects from './pages/admin/PowerlineProjects';
+import PlantationWizard from './pages/admin/PlantationWizard';
+import PowerlineWizard from './pages/admin/PowerlineWizard';
+
 // Layout shim for Client Portal
 import { useState, useEffect } from 'react';
 import { FolderOpen, ArrowLeft, Layers3 } from 'lucide-react';
@@ -243,6 +250,46 @@ function App() {
             element={
               <ProtectedRoute requiredRole="staff">
                 <ProjectWizard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/projects/plantation" 
+            element={
+              <ProtectedRoute requiredRole="staff">
+                <PlantationProjects />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/projects/plantation/new" 
+            element={
+              <ProtectedRoute requiredRole="staff">
+                <PlantationWizard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/projects/powerline" 
+            element={
+              <ProtectedRoute requiredRole="staff">
+                <PowerlineProjects />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/projects/powerline/new" 
+            element={
+              <ProtectedRoute requiredRole="staff">
+                <PowerlineWizard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/admin/processing-nodes" 
+            element={
+              <ProtectedRoute requiredRole="ADMIN">
+                <ProcessingNodes />
               </ProtectedRoute>
             } 
           />

@@ -47,7 +47,7 @@ function formatBytes(b) {
   const i = Math.floor(Math.log(b) / Math.log(k));
   return `${(b / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
 }
-export default function ProjectWizard() {
+export default function ProjectWizard({ defaultType }) {
   const {
     projectId: id
   } = useParams();
@@ -59,7 +59,7 @@ export default function ProjectWizard() {
     user
   } = useAuth();
   const isSubAdmin = user?.role === 'SUB_ADMIN';
-  const [currentStep, setCurrentStep] = useState(1);
+  const [currentStep, setCurrentStep] = useState(defaultType ? 1 : 0);
   const [project, setProject] = useState(null);
   const [loading, setLoading] = useState(isEditing);
   const [clients, setClients] = useState([]);
