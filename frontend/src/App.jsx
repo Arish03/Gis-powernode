@@ -241,7 +241,7 @@ function App() {
             path="/admin/projects/new" 
             element={
               <ProtectedRoute requiredRole="staff">
-                <ProjectWizard />
+                <PlantationWizard />
               </ProtectedRoute>
             } 
           />
@@ -249,7 +249,7 @@ function App() {
             path="/admin/projects/:projectId/wizard" 
             element={
               <ProtectedRoute requiredRole="staff">
-                <ProjectWizard />
+                <PlantationWizard />
               </ProtectedRoute>
             } 
           />
@@ -261,14 +261,10 @@ function App() {
               </ProtectedRoute>
             } 
           />
-          <Route 
-            path="/admin/projects/plantation/new" 
-            element={
-              <ProtectedRoute requiredRole="staff">
-                <PlantationWizard />
-              </ProtectedRoute>
-            } 
-          />
+          <Route path="/admin/projects/plantation/new" element={<ProtectedRoute requiredRole="staff"><PlantationWizard /></ProtectedRoute>} />
+          <Route path="/admin/projects/plantation/new/:projectId" element={<ProtectedRoute requiredRole="staff"><PlantationWizard /></ProtectedRoute>} />
+          <Route path="/admin/projects/powerline/new" element={<ProtectedRoute requiredRole="staff"><PowerlineWizard /></ProtectedRoute>} />
+          <Route path="/admin/projects/powerline/new/:projectId" element={<ProtectedRoute requiredRole="staff"><PowerlineWizard /></ProtectedRoute>} />
           <Route 
             path="/admin/projects/powerline" 
             element={
