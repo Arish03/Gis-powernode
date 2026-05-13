@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { 
   FolderOpen, Map, BarChart3, Users, Settings, LogOut, 
-  Menu, X, Layers3, ShieldAlert, FileText, Trees, Zap, PlaneTakeoff, Cpu
+  Menu, X, Layers3, ShieldAlert, FileText, Trees, Zap, PlaneTakeoff, Cpu, Plus
 } from 'lucide-react';
 import api from '../api/client';
 
