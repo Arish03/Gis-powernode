@@ -24,7 +24,7 @@ jobs:
             git reset --hard origin/main
             chmod +x deploy.sh
             if ! ./deploy.sh; then
-              echo "❌ Deployment failed! Printing backend logs for troubleshooting..."
-              docker compose logs backend --tail 50
+              echo "❌ Deployment failed! Printing ALL service logs for troubleshooting..."
+              docker compose logs --tail 50
               exit 1
             fi
